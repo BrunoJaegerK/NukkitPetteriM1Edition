@@ -8,6 +8,7 @@ import cn.nukkit.event.entity.EntityDamageByEntityEvent;
 import cn.nukkit.event.entity.EntityDamageEvent;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.format.FullChunk;
+import cn.nukkit.math.Vector3;
 import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.utils.Utils;
 
@@ -71,7 +72,70 @@ public class EntityPolarBear extends EntityWalkingMob {
 
     @Override
     public boolean targetOption(EntityCreature creature, double distance) {
+        if (!this.getServer().getMobAiEnabled() || !creature.isAlive() || creature.closed || distance > 256) {
+            return false;
+        }
+        if (!this.isBaby() && creature instanceof EntityFox) {
+            this.setAngry(500);
+            return super.targetOption(creature, distance);
+        }
+        if (!this.isBaby() && creature instanceof Player && this.isPlayerThreateningNearbyCub((Player) creature)) {
+            this.setAngry(500);
+        }
         return this.isAngry() && super.targetOption(creature, distance);
+    }
+
+    @Override
+    public Vector3 updateMove(int tickDiff) {
+        Player threat = this.isBaby() && this.getServer().getMobAiEnabled() ? this.findNearbyPlayerThreat() : null;
+        if (threat != null) {
+            double dx = this.x - threat.x;
+            double dz = this.z - threat.z;
+            if (dx * dx + dz * dz < 0.01) {
+                dx = 1;
+                dz = 0;
+            }
+            double length = Math.sqrt(dx * dx + dz * dz);
+            this.followTarget = null;
+            this.target = new Vector3(this.x + dx / length * 8, this.y, this.z + dz / length * 8);
+            this.stayTime = 0;
+            this.moveTime = 20;
+            this.moveMultiplier = 1.25f;
+        } else {
+            this.moveMultiplier = 1.0f;
+        }
+        return super.updateMove(tickDiff);
+    }
+
+    private Player findNearbyPlayerThreat() {
+        Player nearest = null;
+        double nearestDistance = 256;
+        for (Entity entity : this.level.getNearbyEntities(this.getBoundingBox().grow(16, 8, 16), this)) {
+            if (entity instanceof Player) {
+                Player player = (Player) entity;
+                if (!player.closed && player.isAlive() && (player.isSurvival() || player.isAdventure())) {
+                    double distance = this.distanceSquared(player);
+                    if (distance < nearestDistance) {
+                        nearest = player;
+                        nearestDistance = distance;
+                    }
+                }
+            }
+        }
+        return nearest;
+    }
+
+    private boolean isPlayerThreateningNearbyCub(Player player) {
+        if (!(player.isSurvival() || player.isAdventure()) || player.closed || !player.isAlive()) {
+            return false;
+        }
+        for (Entity entity : this.level.getNearbyEntities(this.getBoundingBox().grow(41, 16, 41), this)) {
+            if (entity instanceof EntityPolarBear && ((EntityPolarBear) entity).isBaby()
+                    && entity.distanceSquared(player) <= 256) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -151,3 +215,4 @@ public class EntityPolarBear extends EntityWalkingMob {
         return 0f;
     }
 }
+
