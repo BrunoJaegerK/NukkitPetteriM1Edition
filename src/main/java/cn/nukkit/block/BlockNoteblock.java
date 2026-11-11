@@ -3,6 +3,8 @@ package cn.nukkit.block;
 import cn.nukkit.Player;
 import cn.nukkit.blockentity.BlockEntity;
 import cn.nukkit.blockentity.BlockEntityMusic;
+import cn.nukkit.entity.Entity;
+import cn.nukkit.entity.passive.EntityAllay;
 import cn.nukkit.item.Item;
 import cn.nukkit.item.ItemTool;
 import cn.nukkit.level.Level;
@@ -253,6 +255,12 @@ public class BlockNoteblock extends BlockSolid {
         pk.case1 = instrumentId;
         pk.case2 = strength;
         this.getLevel().addChunkPacket(this.getChunkX(), this.getChunkZ(), pk);
+
+        for (Entity entity : this.level.getNearbyEntities(this.getBoundingBox().grow(16, 16, 16))) {
+            if (entity instanceof EntityAllay) {
+                ((EntityAllay) entity).hearNoteBlock(this);
+            }
+        }
     }
 
     @Override
@@ -299,3 +307,4 @@ public class BlockNoteblock extends BlockSolid {
         return false; // prevent item loss issue with pistons until a working implementation
     }
 }
+
