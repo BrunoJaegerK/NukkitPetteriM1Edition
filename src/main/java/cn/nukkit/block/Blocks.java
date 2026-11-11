@@ -746,5 +746,9 @@ class Blocks {
         list[WAXED_EXPOSED_COPPER_TRAPDOOR] = BlockCopperTrapdoorExposedWaxed.class; //1052
         list[WAXED_WEATHERED_COPPER_TRAPDOOR] = BlockCopperTrapdoorWeatheredWaxed.class; //1053
         list[WAXED_OXIDIZED_COPPER_TRAPDOOR] = BlockCopperTrapdoorOxidizedWaxed.class; //1054
+        list[CRAFTER] = BlockCrafter.class; //568
+        list[VAULT] = BlockVault.class; //569
+        list[TRIAL_SPAWNER] = BlockTrialSpawner.class; //570
+        list[HEAVY_CORE] = BlockHeavyCore.class; //571
     }
 }
