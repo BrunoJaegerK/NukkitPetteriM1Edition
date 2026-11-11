@@ -3,11 +3,14 @@ package cn.nukkit.entity.mob;
 import cn.nukkit.Player;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityArthropod;
+import cn.nukkit.entity.EntityCreature;
+import cn.nukkit.entity.passive.EntityArmadillo;
 import cn.nukkit.event.entity.EntityDamageByEntityEvent;
 import cn.nukkit.event.entity.EntityDamageEvent;
 import cn.nukkit.event.entity.EntityPotionEffectEvent;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.format.FullChunk;
+import cn.nukkit.math.Vector3;
 import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.potion.Effect;
 import cn.nukkit.utils.Utils;
@@ -78,6 +81,51 @@ public class EntityCaveSpider extends EntityWalkingMob implements EntityArthropo
     }
 
     @Override
+    public Vector3 updateMove(int tickDiff) {
+        EntityArmadillo armadillo = this.findNearbyUnrolledArmadillo();
+        if (armadillo != null) {
+            double dx = this.x - armadillo.x;
+            double dz = this.z - armadillo.z;
+            if (dx * dx + dz * dz < 0.01) {
+                dx = 1;
+                dz = 0;
+            }
+            double length = Math.sqrt(dx * dx + dz * dz);
+            this.followTarget = null;
+            this.target = new Vector3(this.x + dx / length * 8, this.y, this.z + dz / length * 8);
+            this.stayTime = 0;
+            this.moveTime = 20;
+            this.moveMultiplier = 1.25f;
+        } else {
+            this.moveMultiplier = 1.0f;
+        }
+        return super.updateMove(tickDiff);
+    }
+
+    private EntityArmadillo findNearbyUnrolledArmadillo() {
+        if (!this.getServer().getMobAiEnabled()) {
+            return null;
+        }
+        EntityArmadillo nearest = null;
+        double nearestDistance = 36;
+        for (Entity entity : this.level.getNearbyEntities(this.getBoundingBox().grow(6, 4, 6), this)) {
+            if (entity instanceof EntityArmadillo && !((EntityArmadillo) entity).isRolledUp()) {
+                double distance = this.distanceSquared(entity);
+                if (distance < nearestDistance) {
+                    nearest = (EntityArmadillo) entity;
+                    nearestDistance = distance;
+                }
+            }
+        }
+        return nearest;
+    }
+
+    @Override
+    public boolean targetOption(EntityCreature creature, double distance) {
+        return this.findNearbyUnrolledArmadillo() == null && super.targetOption(creature, distance);
+    }
+
+    @Override
     public Item[] getDrops() {
         List<Item> drops = new ArrayList<>();
 
@@ -100,3 +148,4 @@ public class EntityCaveSpider extends EntityWalkingMob implements EntityArthropo
         return this.hasCustomName() ? this.getNameTag() : "Cave Spider";
     }
 }
+
