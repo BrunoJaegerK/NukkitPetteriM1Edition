@@ -24,7 +24,9 @@ public class PolarBearSpawner extends AbstractEntitySpawner {
         if (!level.isAnimalSpawningAllowedByTime()) {
             return;
         }
-        if (level.getBiomeId((int) pos.x, (int) pos.z) == 12) {
+        int biomeId = level.getBiomeId((int) pos.x, (int) pos.z);
+        if (biomeId == 12 || biomeId == 13 || biomeId == 140
+                || biomeId == 10 || biomeId == 46 || biomeId == 47) {
             int blockId = level.getBlockIdAt((int) pos.x, (int) pos.y, (int) pos.z);
             if (blockId == Block.GRASS || blockId == Block.SNOW_LAYER) {
                 for (int i = 0; i < Utils.rand(1, 2); i++) {

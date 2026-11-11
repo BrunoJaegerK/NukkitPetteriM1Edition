@@ -22,7 +22,7 @@ public class HuskSpawner extends AbstractEntitySpawner {
             return;
         }
         final int biomeId = level.getBiomeId((int) pos.x, (int) pos.z);
-        if (biomeId == 2 || biomeId == 130) {
+        if (biomeId == 2 || biomeId == 17 || biomeId == 130) {
             if (level.getBlockLightAt((int) pos.x, (int) pos.y + 1, (int) pos.z) == 0 && level.canBlockSeeSky(new Vector3((int) pos.x, (int) pos.y + 1, (int) pos.z))) {
                 BaseEntity entity = this.spawnTask.createEntity("Husk", pos.add(0.5, 1, 0.5));
                 if (entity == null) return;

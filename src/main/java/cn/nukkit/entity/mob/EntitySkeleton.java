@@ -70,7 +70,9 @@ public class EntitySkeleton extends EntityWalkingMob implements EntitySmite, Ent
         }
 
         double distance = this.distanceSquared(player);
-        double delay = server.getDifficulty() == 3 ? 20 + (distance / 5.63) : 60;
+        // Skeletons should keep their ranged rhythm instead of waiting three seconds
+        // on normal difficulty. Hard difficulty gives them a modestly faster cadence.
+        double delay = server.getDifficulty() == 3 ? 35 + Math.min(15, distance / 15.0) : 45;
         if (this instanceof EntityBogged || this instanceof EntityParched) {
             delay += 30;
         }
@@ -100,7 +102,17 @@ public class EntitySkeleton extends EntityWalkingMob implements EntitySmite, Ent
             EntityShootBowEvent ev = new EntityShootBowEvent(this, Item.get(Item.ARROW, 0, 1), shot, 1.7);
             this.server.getPluginManager().callEvent(ev);
 
-            shot.setMotion(player.add(Utils.rand(-0.1, 0.1), Utils.rand(-0.1, 0.1) + player.getEyeHeight(), Utils.rand(-0.1, 0.1)).subtract(this).normalize().multiply(ev.getForce()));
+            // Lead moving targets slightly and compensate for arrow drop. A small
+            // random spread keeps shots natural without the old excessive inaccuracy.
+            double flightTicks = Math.min(10.0, Math.sqrt(distance) / Math.max(ev.getForce(), 0.1));
+            double leadTicks = Math.min(flightTicks, 6.0);
+            double aimX = player.x + player.motionX * leadTicks * 0.6 + Utils.rand(-0.025, 0.025);
+            double aimY = player.y + player.getEyeHeight()
+                    + player.motionY * leadTicks * 0.35
+                    + Math.min(1.0, shot.getGravity() * flightTicks * flightTicks * 0.35)
+                    + Utils.rand(-0.025, 0.025);
+            double aimZ = player.z + player.motionZ * leadTicks * 0.6 + Utils.rand(-0.025, 0.025);
+            shot.setMotion(new cn.nukkit.math.Vector3(aimX, aimY, aimZ).subtract(this).normalize().multiply(ev.getForce()));
 
             EntityProjectile projectile = ev.getProjectile();
             if (ev.isCancelled()) {
@@ -223,7 +235,9 @@ public class EntitySkeleton extends EntityWalkingMob implements EntitySmite, Ent
             }
             return false;
         }
-        return creature.isAlive() && !creature.closed && distance <= 256;
+        // Skeletons naturally prioritize players. They should not randomly hunt
+        // passive creatures or unrelated mobs merely because they are nearby.
+        return false;
     }
 
     @Override

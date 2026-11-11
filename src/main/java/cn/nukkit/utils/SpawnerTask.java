@@ -201,24 +201,60 @@ public class SpawnerTask implements Runnable {
         }
         int max = getMaxSpawns(networkId, level.getDimension() == Level.DIMENSION_NETHER, level.getDimension() == Level.DIMENSION_THE_END);
         if (max == 0) return false;
-        int count = 0;
-        int globalCount = 0;
+        // Bedrock-like local population limits. The previous implementation only
+        // limited each species separately (4 skeletons, 4 zombies, 4 creepers...),
+        // allowing every spawner to fill the same area independently.
+        final int maxHostile = 35;
+        final int maxPassive = 10;
+        final int maxAquatic = 8;
+        int speciesCount = 0;
+        int hostileCount = 0;
+        int passiveCount = 0;
+        int aquaticCount = 0;
+
         for (Entity entity : level.getEntitiesList()) {
             if (!(entity instanceof BaseEntity) || !entity.isAlive()) {
                 continue;
             }
+
             double dx = player.x - entity.x;
             double dz = player.z - entity.z;
-            if (dx * dx + dz * dz < 16384) { // 128 blocks, ignore y
-                if (++globalCount > 200) {
-                    return false;
-                }
-                if (entity.getNetworkId() == networkId && ++count > max) {
-                    return false;
-                }
+            if (dx * dx + dz * dz >= 16384) { // 128 blocks, ignore Y
+                continue;
+            }
+
+            int entityId = entity.getNetworkId();
+            if (Utils.monstersList.contains(entityId)) {
+                hostileCount++;
+            } else if (isAquaticMob(entityId)) {
+                aquaticCount++;
+            } else {
+                passiveCount++;
+            }
+
+            if (entityId == networkId && ++speciesCount > max) {
+                return false;
             }
         }
-        return true;
+
+        // Count all mobs in the local player area, not only the requested species.
+        if (Utils.monstersList.contains(networkId)) {
+            return hostileCount < maxHostile;
+        }
+        if (isAquaticMob(networkId)) {
+            return aquaticCount < maxAquatic;
+        }
+        return passiveCount < maxPassive;
+    }
+
+    private static boolean isAquaticMob(int networkId) {
+        return networkId == EntityCod.NETWORK_ID
+                || networkId == EntitySalmon.NETWORK_ID
+                || networkId == EntityPufferfish.NETWORK_ID
+                || networkId == EntityTropicalFish.NETWORK_ID
+                || networkId == EntitySquid.NETWORK_ID
+                || networkId == EntityDolphin.NETWORK_ID;
+    }
     }
 
     /**

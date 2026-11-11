@@ -20,7 +20,7 @@ public class StraySpawner extends AbstractEntitySpawner {
             return;
         }
         final int biomeId = level.getBiomeId((int) pos.x, (int) pos.z);
-        if (biomeId == 12 || biomeId == 30 || biomeId == 140 || biomeId == 10 || biomeId == 46 || biomeId == 47) {
+        if (biomeId == 12 || biomeId == 13 || biomeId == 30 || biomeId == 140 || biomeId == 10 || biomeId == 46 || biomeId == 47) {
             if (level.getBlockLightAt((int) pos.x, (int) pos.y + 1, (int) pos.z) == 0 && level.canBlockSeeSky(new Vector3((int) pos.x, (int) pos.y + 1, (int) pos.z))) {
                 this.spawnTask.createEntity("Stray", pos.add(0.5, 1, 0.5));
             }
