@@ -158,10 +158,7 @@ public class EntitySpider extends EntityWalkingMob implements EntityArthropod {
         }
 
         if (this.brightnessCheckCooldown <= 0) {
-            int x = this.getFloorX();
-            int y = this.getFloorY();
-            int z = this.getFloorZ();
-            int brightness = Math.max(this.level.getBlockLightAt(x, y, z), this.level.getBlockSkyLightAt(x, y, z));
+            int brightness = this.level.getFullLight(this);
             this.dark = brightness < 8;
             this.brightnessCheckCooldown = 10;
         }
