@@ -4,11 +4,13 @@ import cn.nukkit.Player;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.event.entity.EntityDamageByEntityEvent;
 import cn.nukkit.event.entity.EntityDamageEvent;
+import cn.nukkit.event.entity.EntityPotionEffectEvent;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.Sound;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.network.protocol.LevelEventPacket;
+import cn.nukkit.potion.Effect;
 
 import java.util.HashMap;
 
@@ -21,6 +23,7 @@ public class EntityWarden extends EntityWalkingMob {
 
     private Entity sonicBoomTarget;
     private int sonicBoomChargeTicks;
+    private int darknessCooldown;
 
     public EntityWarden(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -130,6 +133,21 @@ public class EntityWarden extends EntityWalkingMob {
     @Override
     public boolean entityBaseTick(int tickDiff) {
         boolean hasUpdate = super.entityBaseTick(tickDiff);
+        if (!this.getServer().getMobAiEnabled()) {
+            this.darknessCooldown = 0;
+        } else {
+            this.darknessCooldown += tickDiff;
+            if (this.darknessCooldown >= 120) {
+                this.darknessCooldown %= 120;
+                for (Entity entity : this.level.getNearbyEntities(this.getBoundingBox().grow(20, 20, 20), this)) {
+                    if (entity instanceof Player && entity.isAlive() && !entity.closed
+                            && (((Player) entity).isSurvival() || ((Player) entity).isAdventure())
+                            && this.distanceSquared(entity) <= 400) {
+                        entity.addEffect(Effect.getEffect(Effect.DARKNESS).setDuration(260), EntityPotionEffectEvent.Cause.WARDEN);
+                    }
+                }
+            }
+        }
         if (!this.getServer().getMobAiEnabled() || this.sonicBoomTarget != this.followTarget
                 || this.sonicBoomTarget != null && (this.sonicBoomTarget.closed || !this.sonicBoomTarget.isAlive())) {
             this.cancelSonicBoom();
