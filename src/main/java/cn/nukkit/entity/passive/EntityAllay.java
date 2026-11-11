@@ -248,7 +248,7 @@ public class EntityAllay extends EntityFlyingAnimal {
     @Override
     public boolean canTarget(Entity entity) {
         return this.getServer().getMobAiEnabled() && entity instanceof Player && this.ownerUuid != null
-                && this.ownerUuid.equals(entity.getUniqueId().toString()) && entity.canBeFollowed();
+                && this.ownerUuid.equals(((Player) entity).getUniqueId().toString()) && entity.canBeFollowed();
     }
 
     @Override
@@ -260,7 +260,7 @@ public class EntityAllay extends EntityFlyingAnimal {
     public boolean attack(EntityDamageEvent source) {
         if (source instanceof EntityDamageByEntityEvent && this.ownerUuid != null) {
             Entity damager = ((EntityDamageByEntityEvent) source).getDamager();
-            if (damager instanceof Player && this.ownerUuid.equals(damager.getUniqueId().toString())) {
+            if (damager instanceof Player && this.ownerUuid.equals(((Player) damager).getUniqueId().toString())) {
                 source.setCancelled(true);
             }
         }
