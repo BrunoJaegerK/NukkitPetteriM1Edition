@@ -4,7 +4,10 @@ import cn.nukkit.Player;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.entity.EntityLiving;
+import cn.nukkit.entity.passive.EntityIronGolem;
 import cn.nukkit.entity.item.EntityPotion;
+import cn.nukkit.event.entity.EntityDamageByEntityEvent;
+import cn.nukkit.event.entity.EntityDamageEvent;
 import cn.nukkit.event.entity.ProjectileLaunchEvent;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.Sound;
@@ -20,6 +23,8 @@ import java.util.List;
 public class EntityWitch extends EntityWalkingMob {
 
     public static final int NETWORK_ID = 45;
+    private EntityCreature retaliationTarget;
+    private int retaliationTicks;
 
     public EntityWitch(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -52,7 +57,43 @@ public class EntityWitch extends EntityWalkingMob {
             Player player = (Player) creature;
             return !player.closed && player.spawned && player.isAlive() && (player.isSurvival() || player.isAdventure()) && distance <= 256; // 16 blocks
         }
-        return creature.isAlive() && !creature.closed && distance <= 256;
+        boolean golem = creature instanceof EntityIronGolem || creature instanceof EntitySnowGolem;
+        boolean retaliating = creature == this.retaliationTarget && this.retaliationTicks > 0;
+        return (golem || retaliating) && creature.isAlive() && !creature.closed && distance <= 256;
+    }
+
+    @Override
+    public boolean canTarget(Entity entity) {
+        if (entity instanceof Player) {
+            return super.canTarget(entity);
+        }
+        return entity instanceof EntityCreature && entity.canBeFollowed()
+                && (entity instanceof EntityIronGolem || entity instanceof EntitySnowGolem
+                || entity == this.retaliationTarget && this.retaliationTicks > 0);
+    }
+
+    @Override
+    public boolean attack(EntityDamageEvent source) {
+        boolean damaged = super.attack(source);
+        if (damaged && source instanceof EntityDamageByEntityEvent) {
+            Entity attacker = ((EntityDamageByEntityEvent) source).getDamager();
+            if (attacker instanceof EntityCreature && attacker != this && attacker.isAlive()) {
+                this.retaliationTarget = (EntityCreature) attacker;
+                this.retaliationTicks = 200;
+                this.setTarget(attacker);
+            }
+        }
+        return damaged;
+    }
+
+    @Override
+    public boolean entityBaseTick(int tickDiff) {
+        boolean updated = super.entityBaseTick(tickDiff);
+        if (this.retaliationTicks > 0 && (this.retaliationTicks -= tickDiff) <= 0) {
+            this.retaliationTarget = null;
+            this.retaliationTicks = 0;
+        }
+        return updated;
     }
 
     @Override
