@@ -5,10 +5,10 @@ import cn.nukkit.block.*;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityArthropod;
 import cn.nukkit.entity.EntityCreature;
+import cn.nukkit.entity.passive.EntityIronGolem;
 import cn.nukkit.event.entity.EntityDamageByEntityEvent;
 import cn.nukkit.event.entity.EntityDamageEvent;
 import cn.nukkit.item.Item;
-import cn.nukkit.level.Level;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.math.BlockFace;
 import cn.nukkit.math.NukkitMath;
@@ -24,6 +24,9 @@ public class EntitySpider extends EntityWalkingMob implements EntityArthropod {
     public static final int NETWORK_ID = 35;
 
     private int angry = 0;
+    private int brightnessCheckCooldown;
+    private boolean dark = true;
+    private EntityCreature angryTarget;
 
     public EntitySpider(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -87,6 +90,10 @@ public class EntitySpider extends EntityWalkingMob implements EntityArthropod {
 
     @Override
     public void attackEntity(Entity player) {
+        if (this.isAngry() && player instanceof EntityCreature && this.angryTarget != player) {
+            this.angryTarget = (EntityCreature) player;
+            this.setAngry(Utils.rand(140, 260));
+        }
         if (!this.isFriendly() || !(player instanceof Player)) {
             if (this.isAngry()) {
                 if (this.attackDelay > 23 && this.distanceSquared(player) < 2 + this.getWidth() * this.getWidth()) {
@@ -112,8 +119,11 @@ public class EntitySpider extends EntityWalkingMob implements EntityArthropod {
         super.attack(ev);
 
         if (!ev.isCancelled() && ev instanceof EntityDamageByEntityEvent) {
-            if (((EntityDamageByEntityEvent) ev).getDamager() instanceof Player) {
-                this.setAngry(2400);
+            Entity damager = ((EntityDamageByEntityEvent) ev).getDamager();
+            if (damager instanceof EntityCreature && damager != this) {
+                this.setAngry(Utils.rand(140, 260));
+                this.angryTarget = (EntityCreature) damager;
+                this.setTarget(damager);
             }
         }
 
@@ -147,16 +157,24 @@ public class EntitySpider extends EntityWalkingMob implements EntityArthropod {
             return true;
         }
 
+        if (this.brightnessCheckCooldown <= 0) {
+            int x = this.getFloorX();
+            int y = this.getFloorY();
+            int z = this.getFloorZ();
+            int brightness = Math.max(this.level.getBlockLightAt(x, y, z), this.level.getBlockSkyLightAt(x, y, z));
+            this.dark = brightness < 8;
+            this.brightnessCheckCooldown = 10;
+        }
+        this.brightnessCheckCooldown -= tickDiff;
         if (this.angry > 0) {
-            this.angry--;
+            this.angry = Math.max(0, this.angry - tickDiff);
         }
 
         return super.entityBaseTick(tickDiff);
     }
 
     public boolean isAngry() {
-        int time = this.level.getTime() % Level.TIME_FULL;
-        return this.angry > 0 || (time > 13184 && time < 22800);
+        return this.angry > 0 || this.dark;
     }
 
     public void setAngry(int val) {
@@ -164,7 +182,20 @@ public class EntitySpider extends EntityWalkingMob implements EntityArthropod {
     }
 
     @Override
+    public boolean canTarget(Entity entity) {
+        return entity instanceof Player || entity instanceof EntityIronGolem || entity instanceof EntitySnowGolem
+                ? entity.canBeFollowed() : false;
+    }
+
+    @Override
     public boolean targetOption(EntityCreature creature, double distance) {
-        return this.isAngry() && super.targetOption(creature, distance);
+        if (!this.isAngry() || !creature.isAlive() || creature.closed || distance > 256) {
+            return false;
+        }
+        if (creature instanceof Player) {
+            return super.targetOption(creature, distance);
+        }
+        return creature instanceof EntityIronGolem || creature instanceof EntitySnowGolem;
     }
 }
+
