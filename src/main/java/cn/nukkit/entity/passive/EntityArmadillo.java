@@ -28,13 +28,12 @@ public class EntityArmadillo extends EntityWalkingAnimal {
 
     public static final int NETWORK_ID = 142;
     private static final int THREAT_RANGE_SQUARED = 49;
-    private static final int UNROLL_DELAY_TICKS = 80;
+    // Unroll shortly after all nearby threats have left.
+    private static final int UNROLL_DELAY_TICKS = 40;
 
     private boolean rolledUp;
     private int threatSearchCooldown;
     private int ticksWithoutThreat;
-    private int lastAttackerTicks;
-    private Entity lastAttacker;
 
     public EntityArmadillo(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -80,17 +79,12 @@ public class EntityArmadillo extends EntityWalkingAnimal {
     public boolean onUpdate(int currentTick) {
         if (!this.getServer().getMobAiEnabled()) {
             this.setRolledUp(false);
-            this.lastAttacker = null;
-            this.lastAttackerTicks = 0;
             return super.onUpdate(currentTick);
         }
         if (this.closed || !this.isAlive()) {
             return super.onUpdate(currentTick);
         }
 
-        if (this.lastAttackerTicks > 0 && --this.lastAttackerTicks == 0) {
-            this.lastAttacker = null;
-        }
         if (this.threatSearchCooldown <= 0) {
             this.threatSearchCooldown = 5;
             if (this.hasNearbyThreat()) {
@@ -117,8 +111,12 @@ public class EntityArmadillo extends EntityWalkingAnimal {
     @Override
     public Vector3 updateMove(int tickDiff) {
         if (this.rolledUp) {
-            // Keep the shell state physically still and synchronize the stop to nearby clients.
-            this.motionX = this.motionY = this.motionZ = 0;
+            // A rolled-up armadillo must not retain a stale wander/follow target or drift.
+            this.target = null;
+            this.followTarget = null;
+            this.route = null;
+            this.motionX = 0;
+            this.motionZ = 0;
             this.moveTime = 0;
             this.stayTime = 0;
             this.updateMovement();
@@ -143,8 +141,6 @@ public class EntityArmadillo extends EntityWalkingAnimal {
                 && ev instanceof EntityDamageByEntityEvent) {
             Entity attacker = ((EntityDamageByEntityEvent) ev).getDamager();
             if (attacker != this) {
-                this.lastAttacker = attacker;
-                this.lastAttackerTicks = 400;
                 this.doPanic(false);
                 if (this.canRollUp()) {
                     this.setRolledUp(true);
@@ -183,10 +179,8 @@ public class EntityArmadillo extends EntityWalkingAnimal {
     }
 
     private boolean hasNearbyThreat() {
-        if (this.lastAttacker != null && !this.lastAttacker.closed && this.lastAttacker.isAlive()
-                && this.distanceSquared(this.lastAttacker) <= THREAT_RANGE_SQUARED) {
-            return true;
-        }
+        // Being hit triggers the initial roll, but the attacker is not treated as a
+        // permanent threat: after it stops being dangerous or leaves, the armadillo unrolls.
         for (Entity entity : this.level.getNearbyEntities(this.getBoundingBox().grow(7, 7, 7), this)) {
             if (entity instanceof Player) {
                 Player player = (Player) entity;
