@@ -1,7 +1,9 @@
 package cn.nukkit.entity.passive;
 
 import cn.nukkit.Player;
+import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
+import cn.nukkit.entity.mob.EntityMob;
 import cn.nukkit.level.particle.ItemBreakParticle;
 import cn.nukkit.math.Vector3;
 import cn.nukkit.network.protocol.LevelSoundEventPacket;
@@ -67,6 +69,55 @@ public class EntityRabbit extends EntityJumpingAnimal {
     }
 
     @Override
+    public Vector3 updateMove(int tickDiff) {
+        Entity threat = this.findNearbyThreat();
+        if (threat != null) {
+            double dx = this.x - threat.x;
+            double dz = this.z - threat.z;
+            if (dx * dx + dz * dz < 0.01) {
+                dx = 1;
+                dz = 0;
+            }
+            double length = Math.sqrt(dx * dx + dz * dz);
+            this.followTarget = null;
+            this.target = new Vector3(this.x + dx / length * 8, this.y, this.z + dz / length * 8);
+            this.stayTime = 0;
+            this.moveTime = 20;
+            this.moveMultiplier = 1.5f;
+        } else {
+            this.moveMultiplier = 1.0f;
+        }
+        return super.updateMove(tickDiff);
+    }
+
+    private Entity findNearbyThreat() {
+        if (!this.getServer().getMobAiEnabled()) {
+            return null;
+        }
+        Entity nearest = null;
+        double nearestDistance = 64;
+        for (Entity entity : this.level.getNearbyEntities(this.getBoundingBox().grow(8, 6, 8), this)) {
+            double distance = this.distanceSquared(entity);
+            if (distance >= nearestDistance) {
+                continue;
+            }
+            if (entity instanceof Player) {
+                Player player = (Player) entity;
+                int heldItem = player.getInventory().getItemInHandFast().getId();
+                if (!player.closed && player.isAlive() && (player.isSurvival() || player.isAdventure())
+                        && heldItem != Item.DANDELION && heldItem != Item.CARROT && heldItem != Item.GOLDEN_CARROT) {
+                    nearest = player;
+                    nearestDistance = distance;
+                }
+            } else if (entity instanceof EntityWolf || entity instanceof EntityMob && !entity.isFriendly()) {
+                nearest = entity;
+                nearestDistance = distance;
+            }
+        }
+        return nearest;
+    }
+
+    @Override
     public Item[] getDrops() {
         List<Item> drops = new ArrayList<>();
 
@@ -98,3 +149,4 @@ public class EntityRabbit extends EntityJumpingAnimal {
         return super.onInteract(player, item, clickedPos);
     }
 }
+
