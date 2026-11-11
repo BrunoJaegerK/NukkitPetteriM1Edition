@@ -57,11 +57,12 @@ public class EntityPhantom extends EntityFlyingMob implements EntitySmite {
     }
 
     public boolean targetOption(EntityCreature creature, double distance) {
-        if (creature instanceof Player) {
-            Player player = (Player) creature;
-            return player.spawned && player.isAlive() && !player.closed && (player.isSurvival() || player.isAdventure()) && distance <= 1024;
+        if (!(creature instanceof Player)) {
+            return false;
         }
-        return creature.isAlive() && !creature.closed && distance <= 1024;
+        Player player = (Player) creature;
+        return player.spawned && player.isAlive() && !player.closed
+                && (player.isSurvival() || player.isAdventure()) && distance <= 1024;
     }
 
     @Override
@@ -124,3 +125,4 @@ public class EntityPhantom extends EntityFlyingMob implements EntitySmite {
         return false;
     }
 }
+

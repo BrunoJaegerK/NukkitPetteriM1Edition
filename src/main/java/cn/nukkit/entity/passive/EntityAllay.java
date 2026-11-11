@@ -102,9 +102,10 @@ public class EntityAllay extends EntityFlyingAnimal {
     @Override
     public boolean onUpdate(int currentTick) {
         if (!this.getServer().getMobAiEnabled()) {
+            boolean wasHeadingToNoteBlock = this.noteBlockTarget != null;
             this.itemTarget = null;
             this.followTarget = null;
-            if (this.target instanceof EntityItem || this.target instanceof Player) {
+            if (this.target instanceof EntityItem || this.target instanceof Player || wasHeadingToNoteBlock) {
                 this.target = null;
             }
             if (this.noteBlockTarget != null || this.noteBlockTicks > 0) {
