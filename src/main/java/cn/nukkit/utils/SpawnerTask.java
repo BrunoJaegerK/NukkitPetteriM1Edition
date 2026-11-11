@@ -255,7 +255,6 @@ public class SpawnerTask implements Runnable {
                 || networkId == EntitySquid.NETWORK_ID
                 || networkId == EntityDolphin.NETWORK_ID;
     }
-    }
 
     /**
      * Attempt to spawn a mob
