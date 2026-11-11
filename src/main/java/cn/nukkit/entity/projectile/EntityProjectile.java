@@ -6,6 +6,7 @@ import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityLiving;
 import cn.nukkit.entity.item.*;
 import cn.nukkit.entity.mob.EntityBlaze;
+import cn.nukkit.entity.mob.EntityBreeze;
 import cn.nukkit.entity.mob.EntityEnderDragon;
 import cn.nukkit.event.entity.*;
 import cn.nukkit.event.entity.EntityDamageEvent.DamageCause;
@@ -94,6 +95,11 @@ public abstract class EntityProjectile extends Entity {
     }
 
     public void onCollideWithEntity(Entity entity) {
+        if (entity instanceof EntityBreeze && !(this instanceof EntityWindCharge)) {
+            this.deflectFromBreeze((EntityBreeze) entity);
+            return;
+        }
+
         this.server.getPluginManager().callEvent(new ProjectileHitEvent(this, MovingObjectPosition.fromEntity(entity)));
         float damage = this instanceof EntitySnowball && entity instanceof EntityBlaze ? 3 : this.getResultDamage();
 
@@ -123,6 +129,33 @@ public abstract class EntityProjectile extends Entity {
         }
 
         this.close();
+    }
+
+    private void deflectFromBreeze(EntityBreeze breeze) {
+        Vector3 direction = this.subtract(breeze).normalize();
+        if (direction.lengthSquared() == 0) {
+            direction = breeze.getDirectionVector().multiply(-1).normalize();
+        }
+
+        double speed = Math.sqrt(this.motionX * this.motionX + this.motionY * this.motionY + this.motionZ * this.motionZ);
+        if (speed < 0.5) {
+            speed = 0.5;
+        }
+
+        double separation = (breeze.getWidth() + this.getWidth()) / 2 + 0.2;
+        this.setPosition(new Vector3(
+                breeze.x + direction.x * separation,
+                breeze.y + breeze.getHeight() / 2 + direction.y * separation,
+                breeze.z + direction.z * separation
+        ));
+        this.motionX = direction.x * speed;
+        this.motionY = direction.y * speed;
+        this.motionZ = direction.z * speed;
+        this.shootingEntity = breeze;
+        this.hadCollision = false;
+        this.isCollided = false;
+        this.updateRotation();
+        this.updateMovement();
     }
 
     @Override
@@ -297,3 +330,4 @@ public abstract class EntityProjectile extends Entity {
         block.onEntityCollide(this);
     }
 }
+

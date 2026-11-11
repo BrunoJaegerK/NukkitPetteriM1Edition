@@ -2,6 +2,7 @@ package cn.nukkit.entity.passive;
 
 import cn.nukkit.Player;
 import cn.nukkit.Server;
+import cn.nukkit.block.Block;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.entity.data.ByteEntityData;
@@ -15,6 +16,7 @@ import cn.nukkit.item.ItemID;
 import cn.nukkit.level.Sound;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.level.particle.ItemBreakParticle;
+import cn.nukkit.math.AxisAlignedBB;
 import cn.nukkit.math.Vector3;
 import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.network.protocol.EntityEventPacket;
@@ -290,14 +292,53 @@ public class EntityWolf extends EntityTameableMob {
     protected void checkTarget() {
         Player owner;
         if (!this.isSitting() && (owner = this.getOwner()) != null && this.distanceSquared(owner) > 144) {
-            this.setAngry(false);
-            // TODO: Safe teleport (on ground)
-            this.teleport(owner);
-            this.move(0, 0.0001, 0); // To fix floating problem
-            return;
+            if (this.tryTeleportToOwner(owner)) {
+                this.setAngry(false);
+                this.move(0, 0.0001, 0); // To fix floating problem
+                return;
+            }
         }
 
         super.checkTarget();
+    }
+
+    private boolean tryTeleportToOwner(Player owner) {
+        if (owner.getLevel() != this.level || owner.getRiding() != null || owner.isInsideOfWater()) {
+            return false;
+        }
+
+        int ownerX = owner.getFloorX();
+        int ownerY = owner.getFloorY();
+        int ownerZ = owner.getFloorZ();
+        for (int attempt = 0; attempt < 10; attempt++) {
+            int x = ownerX + Utils.rand(-2, 2);
+            int z = ownerZ + Utils.rand(-2, 2);
+            if (x == ownerX && z == ownerZ) {
+                continue;
+            }
+
+            FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+            if (chunk == null || ownerY <= this.level.getMinBlockY() || ownerY >= this.level.getMaxBlockY()) {
+                continue;
+            }
+
+            Block floor = this.level.getBlock(chunk, x, ownerY - 1, z, false);
+            Block feet = this.level.getBlock(chunk, x, ownerY, z, false);
+            Block head = this.level.getBlock(chunk, x, ownerY + 1, z, false);
+            if (!floor.isSolid() || !feet.canPassThrough() || !head.canPassThrough()
+                    || Block.isWater(feet.getId()) || Block.isWater(head.getId())) {
+                continue;
+            }
+
+            Vector3 position = new Vector3(x + 0.5, ownerY, z + 0.5);
+            AxisAlignedBB targetBox = this.getBoundingBox().getOffsetBoundingBox(
+                    position.x - this.x, position.y - this.y, position.z - this.z);
+            if (this.level.hasCollisionBlocks(this, targetBox) || !this.teleport(position)) {
+                continue;
+            }
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -394,3 +435,4 @@ public class EntityWolf extends EntityTameableMob {
         return !this.hasOwner() && super.ignoredAsSaveReason();
     }
 }
+

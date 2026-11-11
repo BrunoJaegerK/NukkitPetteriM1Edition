@@ -91,8 +91,8 @@ public abstract class EntitySwimming extends BaseEntity {
                     this.motionX = 0;
                     this.motionZ = 0;
                 } else {
-                    this.motionX = this.getSpeed() * 0.1 * (x / diff);
-                    this.motionZ = this.getSpeed() * 0.1 * (z / diff);
+                    this.motionX = this.getSpeed() * this.moveMultiplier * 0.1 * (x / diff);
+                    this.motionZ = this.getSpeed() * this.moveMultiplier * 0.1 * (z / diff);
                 }
                 if (this.noRotateTicks <= 0 && (this.stayTime <= 0 || Utils.rand()) && diff > 0.001) {
                     this.setBothYaw(FastMathLite.toDegrees(-FastMathLite.atan2(x / diff, z / diff)));
@@ -114,8 +114,8 @@ public abstract class EntitySwimming extends BaseEntity {
                     this.motionX = 0;
                     this.motionZ = 0;
                 } else {
-                    this.motionX = this.getSpeed() * 0.15 * (x / diff);
-                    this.motionZ = this.getSpeed() * 0.15 * (z / diff);
+                    this.motionX = this.getSpeed() * this.moveMultiplier * 0.15 * (x / diff);
+                    this.motionZ = this.getSpeed() * this.moveMultiplier * 0.15 * (z / diff);
                 }
                 if (this.noRotateTicks <= 0 && (this.stayTime <= 0 || Utils.rand()) && diff > 0.001) {
                     this.setBothYaw(FastMathLite.toDegrees(-FastMathLite.atan2(x / diff, z / diff)));

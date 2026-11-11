@@ -5,7 +5,7 @@ import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.utils.Utils;
 
-public class EntityNautilus extends EntityWalkingAnimal {
+public class EntityNautilus extends EntityWaterAnimal {
 
     public static final int NETWORK_ID = 149;
 
@@ -35,6 +35,11 @@ public class EntityNautilus extends EntityWalkingAnimal {
     }
 
     @Override
+    public double getSpeed() {
+        return 1.2;
+    }
+
+    @Override
     public Item[] getDrops() {
         if (!this.isBaby()) {
             return new Item[]{Item.get(Item.NAUTILUS_SHELL, 0, Utils.rand(0, 1))};
@@ -48,3 +53,4 @@ public class EntityNautilus extends EntityWalkingAnimal {
         return this.isBaby() ? 0 : Utils.rand(1, 3);
     }
 }
+
