@@ -5,6 +5,9 @@ import cn.nukkit.Server;
 import cn.nukkit.entity.Attribute;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
+import cn.nukkit.entity.mob.EntityCreeper;
+import cn.nukkit.entity.mob.EntityMob;
+import cn.nukkit.entity.mob.EntitySnowGolem;
 import cn.nukkit.entity.mob.EntityWalkingMob;
 import cn.nukkit.event.entity.EntityDamageByEntityEvent;
 import cn.nukkit.event.entity.EntityDamageEvent;
@@ -135,7 +138,9 @@ public class EntityIronGolem extends EntityWalkingMob {
 
     @Override
     public boolean canTarget(Entity entity) {
-        return entity.canBeFollowed() && entity.getId() == this.isAngryTo;
+        return entity.canBeFollowed() && (entity.getId() == this.isAngryTo
+                || entity instanceof EntityMob && !(entity instanceof EntityCreeper)
+                && !(entity instanceof EntitySnowGolem));
     }
 
     @Override
@@ -172,3 +177,4 @@ public class EntityIronGolem extends EntityWalkingMob {
         return super.onInteract(player, item, clickedPos);
     }
 }
+

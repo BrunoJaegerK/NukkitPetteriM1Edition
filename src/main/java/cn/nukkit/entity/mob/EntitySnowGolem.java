@@ -5,6 +5,8 @@ import cn.nukkit.block.Block;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.entity.EntityLiving;
+import cn.nukkit.entity.passive.EntityIronGolem;
+import cn.nukkit.entity.passive.EntityWolf;
 import cn.nukkit.entity.projectile.EntitySnowball;
 import cn.nukkit.event.entity.EntityDamageByEntityEvent;
 import cn.nukkit.event.entity.EntityDamageEvent;
@@ -184,7 +186,10 @@ public class EntitySnowGolem extends EntityWalkingMob {
 
     @Override
     public boolean canTarget(Entity entity) {
-        return entity.canBeFollowed() && entity.getId() == this.isAngryTo;
+        return entity.canBeFollowed() && (entity.getId() == this.isAngryTo
+                || entity instanceof EntityMob && !(entity instanceof EntityCreeper)
+                && !(entity instanceof EntityIronGolem) && !(entity instanceof EntitySnowGolem)
+                && !(entity instanceof EntityWolf));
     }
 
     /**
@@ -209,3 +214,4 @@ public class EntitySnowGolem extends EntityWalkingMob {
         return false;
     }
 }
+
