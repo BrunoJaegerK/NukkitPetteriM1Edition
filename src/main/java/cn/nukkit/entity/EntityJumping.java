@@ -21,38 +21,28 @@ public abstract class EntityJumping extends BaseEntity {
             return;
         }
 
-        if (this.followTarget != null && !this.followTarget.closed && this.followTarget.isAlive() && this.followTarget.canBeFollowed()) {
+        if (this.followTarget instanceof EntityCreature && this.isValidTarget((EntityCreature) this.followTarget)) {
             return;
         }
+        this.followTarget = null;
 
-        Vector3 target = this.target;
-        if (!(target instanceof EntityCreature) || (!((EntityCreature) target).closed && !this.targetOption((EntityCreature) target, this.distanceSquared(target))) || !((Entity) target).canBeFollowed()) {
-            double near = Integer.MAX_VALUE;
+        if (this.target instanceof EntityCreature) {
+            if (this.isValidTarget((EntityCreature) this.target)) {
+                return;
+            }
+            this.target = null;
+        } else if (this.target instanceof Entity) {
+            this.target = null;
+        }
 
-            for (Entity entity : this.getLevel().getEntitiesList()) {
-                if (entity == this || !(entity instanceof EntityCreature) || entity.closed || !this.canTarget(entity)) {
-                    continue;
-                }
-
-                EntityCreature creature = (EntityCreature) entity;
-                if (creature instanceof BaseEntity && ((BaseEntity) creature).isFriendly() == this.isFriendly()) {
-                    continue;
-                }
-
-                double distance = this.distanceSquared(creature);
-                if (distance > near || !this.targetOption(creature, distance)) {
-                    continue;
-                }
-                near = distance;
-
+        if (this.shouldSearchForTarget()) {
+            EntityCreature creature = this.findNearestTarget();
+            if (creature != null) {
                 this.stayTime = 0;
                 this.moveTime = 0;
                 this.target = creature;
+                return;
             }
-        }
-
-        if (this.target instanceof EntityCreature && !((EntityCreature) this.target).closed && ((EntityCreature) this.target).isAlive() && this.targetOption((EntityCreature) this.target, this.distanceSquared(this.target))) {
-            return;
         }
 
         if (this.stayTime > 0) {
@@ -212,3 +202,4 @@ public abstract class EntityJumping extends BaseEntity {
         return null;
     }
 }
+

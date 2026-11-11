@@ -38,38 +38,37 @@ public abstract class EntityWalking extends BaseEntity {
             return;
         }
 
-        if (this.followTarget != null && !this.followTarget.closed && this.followTarget.isAlive() && this.followTarget.canBeFollowed() && targetOption((EntityCreature) this.followTarget, this.distanceSquared(this.followTarget)) && this.target != null) {
-            return;
+        if (this.followTarget != null && !this.followTarget.closed && this.followTarget.isAlive() && this.followTarget.canBeFollowed()) {
+            if (!(this.followTarget instanceof EntityCreature) || this.isValidTarget((EntityCreature) this.followTarget)) {
+                if (this.target == null) {
+                    this.target = this.followTarget;
+                }
+                return;
+            }
         }
 
         this.followTarget = null;
+
+        if (this.target instanceof EntityCreature && !this.isValidTarget((EntityCreature) this.target)) {
+            this.target = null;
+        } else if (this.target instanceof Entity && (this.target instanceof EntityCreature || ((Entity) this.target).closed || !((Entity) this.target).isAlive() || !((Entity) this.target).canBeFollowed())) {
+            this.target = null;
+        }
 
         if (!this.passengers.isEmpty() && !(this instanceof EntityLlama) && !(this instanceof EntityPig)) {
             return;
         }
 
-        double near = Integer.MAX_VALUE;
-
-        for (Entity entity : this.getLevel().getEntitiesList()) {
-            if (entity == this || !(entity instanceof EntityCreature) || entity.closed || !this.canTarget(entity)) {
-                continue;
+        if (this.shouldSearchForTarget()) {
+            EntityCreature creature = this.findNearestTarget();
+            if (creature != null) {
+                this.stayTime = 0;
+                this.moveTime = 0;
+                this.followTarget = creature;
+                if (this.route == null && this.passengers.isEmpty()) {
+                    this.target = creature;
+                }
             }
-
-            EntityCreature creature = (EntityCreature) entity;
-            if (creature instanceof BaseEntity && ((BaseEntity) creature).isFriendly() == this.isFriendly() && creature.getId() != this.isAngryTo) {
-                continue;
-            }
-
-            double distance = this.distanceSquared(creature);
-            if (distance > near || !this.targetOption(creature, distance)) {
-                continue;
-            }
-            near = distance;
-
-            this.stayTime = 0;
-            this.moveTime = 0;
-            this.followTarget = creature;
-            if (this.route == null && this.passengers.isEmpty()) this.target = creature;
         }
 
         if (!this.canSetTemporalTarget()) {
@@ -299,3 +298,4 @@ public abstract class EntityWalking extends BaseEntity {
         this.route = route;
     }
 }
+

@@ -47,6 +47,7 @@ public abstract class BaseEntity extends EntityCreature implements EntityAgeable
     protected Vector3 target;
     protected Entity followTarget;
     protected boolean lookupForTarget = true;
+    private long lastTargetSearchTick = -1;
     /**
      * Player who did last interact with this entity. Used to check who should get the cow breeding achievement.
      */
@@ -216,6 +217,68 @@ public abstract class BaseEntity extends EntityCreature implements EntityAgeable
             return creature instanceof BaseEntity && ((BaseEntity) creature).isInLove() && creature.isAlive() && !creature.closed && creature.getNetworkId() == this.getNetworkId() && distance <= 256;
         }
         return false;
+    }
+
+    /**
+     * Re-evaluate nearby targets at a bounded interval instead of scanning every entity on every mob tick.
+     * Ten ticks is half a second at the normal game tick rate and keeps target acquisition responsive.
+     */
+    protected boolean shouldSearchForTarget() {
+        long tick = this.server.getTick();
+        if (this.lastTargetSearchTick < 0) {
+            // Spread the initial scans across ten ticks instead of making every mob scan at once.
+            long phase = Math.floorMod(this.getId(), 10);
+            if (Math.floorMod(tick, 10) != phase) {
+                return false;
+            }
+            this.lastTargetSearchTick = tick;
+            return true;
+        }
+        if (this.lastTargetSearchTick >= 0 && tick - this.lastTargetSearchTick < 10) {
+            return false;
+        }
+        this.lastTargetSearchTick = tick;
+        return true;
+    }
+
+    /**
+     * Select the nearest valid creature target using this entity's target rules.
+     */
+    protected EntityCreature findNearestTarget() {
+        EntityCreature nearest = null;
+        double nearestDistance = Double.MAX_VALUE;
+
+        for (Entity entity : this.level.getEntitiesList()) {
+            if (entity == this || !(entity instanceof EntityCreature) || entity.closed || !this.canTarget(entity)) {
+                continue;
+            }
+
+            EntityCreature creature = (EntityCreature) entity;
+            if (!creature.isAlive() || !creature.canBeFollowed()) {
+                continue;
+            }
+
+            double distance = this.distanceSquared(creature);
+            if (distance >= nearestDistance) {
+                continue;
+            }
+
+            if (creature instanceof BaseEntity && ((BaseEntity) creature).isFriendly() == this.isFriendly() && creature.getId() != this.isAngryTo) {
+                continue;
+            }
+
+            if (this.targetOption(creature, distance)) {
+                nearest = creature;
+                nearestDistance = distance;
+            }
+        }
+
+        return nearest;
+    }
+
+    protected boolean isValidTarget(EntityCreature creature) {
+        return creature != null && !creature.closed && creature.isAlive() && creature.canBeFollowed()
+                && this.canTarget(creature) && this.targetOption(creature, this.distanceSquared(creature));
     }
 
     @Override
@@ -1011,3 +1074,4 @@ public abstract class BaseEntity extends EntityCreature implements EntityAgeable
         return this.followTarget == null;
     }
 }
+
