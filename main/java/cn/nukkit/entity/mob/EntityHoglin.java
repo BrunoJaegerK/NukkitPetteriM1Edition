@@ -1,7 +1,6 @@
 package cn.nukkit.entity.mob;
 
 import cn.nukkit.Player;
-import cn.nukkit.entity.BaseEntity;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.block.Block;
@@ -85,7 +84,7 @@ public class EntityHoglin extends EntityWalkingMob {
             if (!event.isCancelled()) {
                 Entity zoglin = Entity.createEntity(EntityZoglin.NETWORK_ID, this.getChunk(), Entity.getDefaultNBT(this));
                 if (zoglin != null) {
-                    ((BaseEntity) zoglin).setBaby(this.isBaby());
+                    zoglin.setBaby(this.isBaby());
                     zoglin.setHealth(Math.min(zoglin.getMaxHealth(), this.getHealth()));
                     this.close();
                     zoglin.spawnToAll();
@@ -189,7 +188,7 @@ public class EntityHoglin extends EntityWalkingMob {
                     if (distance > nearestDistance) {
                         continue;
                     }
-                    int id = chunk.getBlockId(x, y, z, Block.LAYER_NORMAL);
+                    int id = chunk.getBlockIdAt(x, y, z, Block.LAYER_NORMAL);
                     if (id == WARPED_FUNGUS || id == NETHER_PORTAL || id == RESPAWN_ANCHOR) {
                         nearest = new Vector3(x, y, z);
                         nearestDistance = distance;
