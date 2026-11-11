@@ -4,10 +4,12 @@ import cn.nukkit.Player;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.block.Block;
+import cn.nukkit.event.entity.CreatureSpawnEvent;
 import cn.nukkit.event.entity.EntityDamageByEntityEvent;
 import cn.nukkit.event.entity.EntityDamageEvent;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.format.FullChunk;
+import cn.nukkit.level.Level;
 import cn.nukkit.math.Vector3;
 import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.utils.Utils;
@@ -28,8 +30,11 @@ public class EntityHoglin extends EntityWalkingMob {
     public final static int NETWORK_ID = 124;
 
     private static final int REPELLENT_RANGE = 7;
+    private static final int ZOMBIFICATION_TICKS = 300;
+    private static final String NBT_KEY_OUTSIDE_NETHER_TICKS = "HoglinOutsideNetherTicks";
     private Vector3 repellentPosition;
     private int repellentSearchCooldown;
+    private int outsideNetherTicks;
 
     public EntityHoglin(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -50,6 +55,44 @@ public class EntityHoglin extends EntityWalkingMob {
         this.setMaxHealth(40);
         super.initEntity();
         this.setDamage(new int[]{0, 2, 3, 4});
+        this.outsideNetherTicks = Math.max(0, this.namedTag.getInt(NBT_KEY_OUTSIDE_NETHER_TICKS));
+    }
+
+    @Override
+    public void saveNBT() {
+        super.saveNBT();
+        this.namedTag.putInt(NBT_KEY_OUTSIDE_NETHER_TICKS, this.outsideNetherTicks);
+    }
+
+    @Override
+    public boolean entityBaseTick(int tickDiff) {
+        if (this.level.getDimension() == Level.DIMENSION_NETHER) {
+            this.outsideNetherTicks = 0;
+        } else {
+            this.outsideNetherTicks = Math.min(ZOMBIFICATION_TICKS, this.outsideNetherTicks + tickDiff);
+        }
+        return super.entityBaseTick(tickDiff);
+    }
+
+    @Override
+    public boolean onUpdate(int currentTick) {
+        boolean updated = super.onUpdate(currentTick);
+        if (updated && !this.closed && this.isAlive() && this.outsideNetherTicks >= ZOMBIFICATION_TICKS) {
+            CreatureSpawnEvent event = new CreatureSpawnEvent(EntityZoglin.NETWORK_ID, this,
+                    CreatureSpawnEvent.SpawnReason.DEFAULT);
+            this.server.getPluginManager().callEvent(event);
+            if (!event.isCancelled()) {
+                Entity zoglin = Entity.createEntity(EntityZoglin.NETWORK_ID, this.getChunk(), Entity.getDefaultNBT(this));
+                if (zoglin != null) {
+                    zoglin.setBaby(this.isBaby());
+                    zoglin.setHealth(Math.min(zoglin.getMaxHealth(), this.getHealth()));
+                    this.close();
+                    zoglin.spawnToAll();
+                    return false;
+                }
+            }
+        }
+        return updated;
     }
 
     @Override
