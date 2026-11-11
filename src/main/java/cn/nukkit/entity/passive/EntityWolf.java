@@ -3,6 +3,7 @@ package cn.nukkit.entity.passive;
 import cn.nukkit.Player;
 import cn.nukkit.Server;
 import cn.nukkit.block.Block;
+import cn.nukkit.entity.Attribute;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.entity.data.ByteEntityData;
@@ -20,6 +21,7 @@ import cn.nukkit.math.AxisAlignedBB;
 import cn.nukkit.math.Vector3;
 import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.network.protocol.EntityEventPacket;
+import cn.nukkit.network.protocol.UpdateAttributesPacket;
 import cn.nukkit.utils.DyeColor;
 import cn.nukkit.utils.Utils;
 
@@ -95,6 +97,38 @@ public class EntityWolf extends EntityTameableMob {
         }
 
         this.setDamage(new int[]{0, 3, 4, 6});
+    }
+
+    @Override
+    public void setHealth(float health) {
+        super.setHealth(health);
+        this.sendHealthAttribute();
+    }
+
+    private void sendHealthAttribute() {
+        Attribute healthAttribute = Attribute.getAttribute(Attribute.MAX_HEALTH)
+                .setMaxValue(this.getRealMaxHealth())
+                .setDefaultValue(this.getRealMaxHealth())
+                .setValue(this.getHealth());
+
+        UpdateAttributesPacket packet = new UpdateAttributesPacket();
+        packet.entityId = this.getId();
+        packet.entries = new Attribute[]{healthAttribute};
+        Server.broadcastPacket(this.getViewers().values(), packet);
+    }
+
+    @Override
+    public void spawnTo(Player player) {
+        super.spawnTo(player);
+        Attribute healthAttribute = Attribute.getAttribute(Attribute.MAX_HEALTH)
+                .setMaxValue(this.getRealMaxHealth())
+                .setDefaultValue(this.getRealMaxHealth())
+                .setValue(this.getHealth());
+
+        UpdateAttributesPacket packet = new UpdateAttributesPacket();
+        packet.entityId = this.getId();
+        packet.entries = new Attribute[]{healthAttribute};
+        player.dataPacket(packet);
     }
 
     @Override
@@ -204,7 +238,7 @@ public class EntityWolf extends EntityTameableMob {
             if (!this.isInLoveCooldown()) this.setInLove();
 
             if (healable != 0) {
-                this.setHealth(Math.max(this.getRealMaxHealth(), this.getHealth() + healable));
+                this.setHealth(Math.min(this.getRealMaxHealth(), this.getHealth() + healable));
             }
 
             return true;

@@ -117,7 +117,11 @@ public class EntityArmadillo extends EntityWalkingAnimal {
     @Override
     public Vector3 updateMove(int tickDiff) {
         if (this.rolledUp) {
+            // Keep the shell state physically still and synchronize the stop to nearby clients.
             this.motionX = this.motionY = this.motionZ = 0;
+            this.moveTime = 0;
+            this.stayTime = 0;
+            this.updateMovement();
             return null;
         }
         return super.updateMove(tickDiff);

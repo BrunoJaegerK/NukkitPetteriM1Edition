@@ -60,6 +60,8 @@ public class EntitySpider extends EntityWalkingMob implements EntityArthropod {
         this.setMaxHealth(16);
         super.initEntity();
         this.setDamage(new int[]{0, 2, 2, 3});
+        this.setCanClimb(true);
+        this.setCanClimbWalls(true);
         this.setDataFlag(DATA_FLAGS_EXTENDED, DATA_FLAG_RENDER_WHEN_INVISIBLE, true);
     }
 
@@ -165,9 +167,9 @@ public class EntitySpider extends EntityWalkingMob implements EntityArthropod {
 
     @Override
     public boolean attack(EntityDamageEvent ev) {
-        super.attack(ev);
+        boolean attacked = super.attack(ev);
 
-        if (!ev.isCancelled() && ev instanceof EntityDamageByEntityEvent) {
+        if (attacked && !ev.isCancelled() && ev instanceof EntityDamageByEntityEvent) {
             Entity damager = ((EntityDamageByEntityEvent) ev).getDamager();
             if (damager instanceof EntityCreature && damager != this) {
                 this.setAngry(Utils.rand(140, 260));
@@ -176,7 +178,7 @@ public class EntitySpider extends EntityWalkingMob implements EntityArthropod {
             }
         }
 
-        return true;
+        return attacked;
     }
 
     @Override

@@ -21,7 +21,8 @@ public class EntityAllay extends EntityFlyingAnimal {
 
     public static final int NETWORK_ID = 134;
     private static final int ITEM_SEARCH_RANGE_SQUARED = 256;
-    private static final int ITEM_PICKUP_RANGE_SQUARED = 4;
+    // Allays hover above ground items; allow for their vertical approach distance.
+    private static final int ITEM_PICKUP_RANGE_SQUARED = 9;
     private static final int OWNER_DELIVERY_RANGE_SQUARED = 9;
 
     private Item heldItem;
@@ -301,6 +302,11 @@ public class EntityAllay extends EntityFlyingAnimal {
             this.heldItem.setCount(1);
             this.ownerUuid = player.getUniqueId().toString();
             this.itemTarget = null;
+            this.itemSearchCooldown = 0;
+            this.followTarget = null;
+            this.target = null;
+            this.stayTime = 0;
+            this.moveTime = 0;
             this.setDataFlag(DATA_FLAGS, DATA_FLAG_INTERESTED, true);
             this.sendHeldItem();
             this.level.addSound(this, Sound.MOB_ALLAY_ITEM_GIVEN);

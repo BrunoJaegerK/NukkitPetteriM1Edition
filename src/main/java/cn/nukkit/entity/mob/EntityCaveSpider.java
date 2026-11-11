@@ -52,6 +52,8 @@ public class EntityCaveSpider extends EntityWalkingMob implements EntityArthropo
         this.setMaxHealth(12);
         super.initEntity();
         this.setDamage(new int[]{0, 2, 3, 3});
+        this.setCanClimb(true);
+        this.setCanClimbWalls(true);
         this.setDataFlag(DATA_FLAGS_EXTENDED, DATA_FLAG_RENDER_WHEN_INVISIBLE, true);
     }
 

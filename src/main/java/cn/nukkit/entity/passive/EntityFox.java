@@ -117,7 +117,9 @@ public class EntityFox extends EntityWalkingAnimal {
             this.followTarget = null;
             this.target = new Vector3(this.x + dx / length * 10, this.y, this.z + dz / length * 10);
             this.stayTime = 0;
-            this.moveTime = 20;
+            // EntityWalking consumes moveTime in large steps while moving; keep fleeing
+            // active long enough to avoid replacing the escape vector with random wandering.
+            this.moveTime = 200;
             this.moveMultiplier = 1.5f;
         } else {
             this.moveMultiplier = 1.0f;

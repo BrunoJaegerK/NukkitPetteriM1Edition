@@ -88,7 +88,8 @@ public class EntityRabbit extends EntityJumpingAnimal {
             this.followTarget = null;
             this.target = new Vector3(this.x + dx / length * 8, this.y, this.z + dz / length * 8);
             this.stayTime = 0;
-            this.moveTime = 20;
+            // Preserve the escape vector across the movement timer's per-step decrement.
+            this.moveTime = 200;
             this.moveMultiplier = 1.5f;
         } else {
             this.moveMultiplier = 1.0f;
