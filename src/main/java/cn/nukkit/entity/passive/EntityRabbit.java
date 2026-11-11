@@ -18,6 +18,8 @@ import java.util.List;
 public class EntityRabbit extends EntityJumpingAnimal {
 
     public static final int NETWORK_ID = 18;
+    private long lastThreatSearchTick = -1;
+    private Entity nearbyThreat;
 
     public EntityRabbit(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -57,6 +59,9 @@ public class EntityRabbit extends EntityJumpingAnimal {
 
     @Override
     public boolean targetOption(EntityCreature creature, double distance) {
+        if (this.findNearbyThreat() != null) {
+            return false;
+        }
         if (creature instanceof Player) {
             Player player = (Player) creature;
             if (player.closed) {
@@ -91,6 +96,15 @@ public class EntityRabbit extends EntityJumpingAnimal {
     }
 
     private Entity findNearbyThreat() {
+        long tick = this.getServer().getTick();
+        if (this.lastThreatSearchTick >= 0 && tick - this.lastThreatSearchTick < 5) {
+            if (this.nearbyThreat == null || !this.nearbyThreat.closed && this.nearbyThreat.isAlive()
+                    && this.distanceSquared(this.nearbyThreat) <= 64) {
+                return this.nearbyThreat;
+            }
+        }
+        this.lastThreatSearchTick = tick;
+        this.nearbyThreat = null;
         if (!this.getServer().getMobAiEnabled()) {
             return null;
         }
@@ -114,7 +128,8 @@ public class EntityRabbit extends EntityJumpingAnimal {
                 nearestDistance = distance;
             }
         }
-        return nearest;
+        this.nearbyThreat = nearest;
+        return this.nearbyThreat;
     }
 
     @Override

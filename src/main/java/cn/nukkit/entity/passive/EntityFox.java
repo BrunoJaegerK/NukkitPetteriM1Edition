@@ -3,6 +3,8 @@ package cn.nukkit.entity.passive;
 import cn.nukkit.Player;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
+import cn.nukkit.event.entity.EntityDamageByEntityEvent;
+import cn.nukkit.event.entity.EntityDamageEvent;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.level.particle.ItemBreakParticle;
@@ -14,6 +16,9 @@ import cn.nukkit.utils.Utils;
 public class EntityFox extends EntityWalkingAnimal {
 
     public static final int NETWORK_ID = 121;
+    private int preyAttackCooldown;
+    private long lastThreatSearchTick = -1;
+    private Entity nearbyThreat;
 
     public EntityFox(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -58,11 +63,44 @@ public class EntityFox extends EntityWalkingAnimal {
 
     @Override
     public boolean targetOption(EntityCreature creature, double distance) {
+        if (this.findNearbyThreat() != null) {
+            return false;
+        }
+        if (this.isPrey(creature)) {
+            return this.getServer().getMobAiEnabled() && creature.isAlive() && !creature.closed && distance <= 144;
+        }
         if (creature instanceof Player) {
             Player player = (Player) creature;
             return player.spawned && player.isAlive() && !player.closed && distance <= 49 && player.getInventory().getItemInHandFast().getId() == Item.SWEET_BERRIES;
         }
         return false;
+    }
+
+    @Override
+    public boolean canTarget(Entity entity) {
+        return super.canTarget(entity) || this.getServer().getMobAiEnabled() && this.getPanicTicks() <= 0
+                && entity instanceof EntityCreature && this.isPrey((EntityCreature) entity) && entity.canBeFollowed();
+    }
+
+    @Override
+    public boolean entityBaseTick(int tickDiff) {
+        this.preyAttackCooldown = Math.max(0, this.preyAttackCooldown - tickDiff);
+        return super.entityBaseTick(tickDiff);
+    }
+
+    @Override
+    public boolean onUpdate(int currentTick) {
+        boolean updated = super.onUpdate(currentTick);
+        Entity prey = this.followTarget != null ? this.followTarget : this.target instanceof Entity ? (Entity) this.target : null;
+        if (!updated || this.closed || !this.isAlive() || !this.getServer().getMobAiEnabled()
+                || this.preyAttackCooldown > 0 || !(prey instanceof EntityCreature) || !this.isPrey((EntityCreature) prey)
+                || this.distanceSquared(prey) > 2.25) {
+            return updated;
+        }
+        this.preyAttackCooldown = 20;
+        prey.attack(new EntityDamageByEntityEvent(this, prey,
+                EntityDamageEvent.DamageCause.ENTITY_ATTACK, 2));
+        return updated;
     }
 
     @Override
@@ -88,6 +126,15 @@ public class EntityFox extends EntityWalkingAnimal {
     }
 
     private Entity findNearbyThreat() {
+        long tick = this.getServer().getTick();
+        if (this.lastThreatSearchTick >= 0 && tick - this.lastThreatSearchTick < 5) {
+            if (this.nearbyThreat == null || !this.nearbyThreat.closed && this.nearbyThreat.isAlive()
+                    && this.distanceSquared(this.nearbyThreat) <= 100) {
+                return this.nearbyThreat;
+            }
+        }
+        this.lastThreatSearchTick = tick;
+        this.nearbyThreat = null;
         if (!this.getServer().getMobAiEnabled()) {
             return null;
         }
@@ -110,7 +157,13 @@ public class EntityFox extends EntityWalkingAnimal {
                 nearestDistance = distance;
             }
         }
-        return nearest;
+        this.nearbyThreat = nearest;
+        return this.nearbyThreat;
+    }
+
+    private boolean isPrey(EntityCreature creature) {
+        return creature instanceof EntityRabbit || creature instanceof EntityChicken || creature instanceof EntityFish
+                || creature instanceof EntityTurtle && ((EntityTurtle) creature).isBaby() && !creature.isInsideOfWater();
     }
 }
 
