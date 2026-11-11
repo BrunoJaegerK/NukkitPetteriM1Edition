@@ -1,6 +1,7 @@
 package cn.nukkit.entity.passive;
 
 import cn.nukkit.Player;
+import cn.nukkit.entity.BaseEntity;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.entity.mob.EntityMob;
@@ -123,7 +124,8 @@ public class EntityRabbit extends EntityJumpingAnimal {
                     nearest = player;
                     nearestDistance = distance;
                 }
-            } else if (entity instanceof EntityWolf || entity instanceof EntityMob && !entity.isFriendly()) {
+            } else if (entity instanceof EntityWolf || (entity instanceof EntityMob && entity instanceof BaseEntity
+                    && !((BaseEntity) entity).isFriendly())) {
                 nearest = entity;
                 nearestDistance = distance;
             }
