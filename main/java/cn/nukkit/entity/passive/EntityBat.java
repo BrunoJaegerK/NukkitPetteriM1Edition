@@ -46,7 +46,7 @@ public class EntityBat extends EntityFlyingAnimal {
 
     @Override
     public Vector3 updateMove(int tickDiff) {
-        if (!this.server.getMobAiEnabled()) {
+        if (!this.server.isMobAiEnabled()) {
             this.setResting(false);
             return super.updateMove(tickDiff);
         }
