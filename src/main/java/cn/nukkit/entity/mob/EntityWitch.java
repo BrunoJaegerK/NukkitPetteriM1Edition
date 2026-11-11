@@ -58,6 +58,9 @@ public class EntityWitch extends EntityWalkingMob {
     @Override
     public void attackEntity(Entity player) {
         if (this.attackDelay > 60 && Utils.rand(1, 3) == 2 && this.distanceSquared(player) <= 60) {
+            if (!this.seesTarget(player)) {
+                return;
+            }
             this.attackDelay = 0;
             if (player.isAlive() && !player.closed) {
                 EntityPotion shot = (EntityPotion) Entity.createEntity("ThrownPotion", this.add(0, this.getEyeHeight(), 0), this);
@@ -141,3 +144,4 @@ public class EntityWitch extends EntityWalkingMob {
         return false; // TODO: swamp hut only
     }
 }
+

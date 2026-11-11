@@ -59,6 +59,9 @@ public class EntityBlaze extends EntityFlyingMob {
             this.setDataFlag(DATA_FLAGS, DATA_FLAG_CHARGED, true);
         }
         if (((this.fireball > 0 && this.fireball < 3 && this.attackDelay > 5) || (this.attackDelay > 120 && Utils.rand(1, 32) < 4)) && this.distanceSquared(player) <= 256) { // 16 blocks
+            if (!this.seesTarget(player)) {
+                return;
+            }
             this.attackDelay = 0;
             this.fireball++;
 
@@ -102,3 +105,4 @@ public class EntityBlaze extends EntityFlyingMob {
         return target instanceof EntityLiving || followTarget instanceof EntityLiving ? 1000 : 1; // don't follow
     }
 }
+

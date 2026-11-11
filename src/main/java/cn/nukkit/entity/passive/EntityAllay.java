@@ -4,6 +4,8 @@ import cn.nukkit.Player;
 import cn.nukkit.Server;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
+import cn.nukkit.event.entity.EntityDamageByEntityEvent;
+import cn.nukkit.event.entity.EntityDamageEvent;
 import cn.nukkit.entity.item.EntityItem;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.Sound;
@@ -118,7 +120,14 @@ public class EntityAllay extends EntityFlyingAnimal {
         }
 
         boolean updated = super.onUpdate(currentTick);
-        if (this.closed || !this.isAlive() || !this.getServer().getMobAiEnabled()) {
+        if (this.closed || !this.isAlive()) {
+            return updated;
+        }
+
+        if (this.ticksLived % 10 == 0 && this.getHealth() < this.getMaxHealth()) {
+            this.heal(1f);
+        }
+        if (!this.getServer().getMobAiEnabled()) {
             return updated;
         }
 
@@ -131,7 +140,6 @@ public class EntityAllay extends EntityFlyingAnimal {
         }
         if (this.noteBlockTicks > 0 && --this.noteBlockTicks == 0) {
             this.noteBlockTarget = null;
-            this.setDataFlag(DATA_FLAGS, DATA_FLAG_DANCING, false);
             if (this.followTarget == null && !(this.target instanceof Entity)) {
                 this.target = null;
             }
@@ -248,6 +256,17 @@ public class EntityAllay extends EntityFlyingAnimal {
         return this.canTarget(creature) && creature.isAlive() && !creature.closed && distance <= 256;
     }
 
+    @Override
+    public boolean attack(EntityDamageEvent source) {
+        if (source instanceof EntityDamageByEntityEvent && this.ownerUuid != null) {
+            Entity damager = ((EntityDamageByEntityEvent) source).getDamager();
+            if (damager instanceof Player && this.ownerUuid.equals(damager.getUniqueId().toString())) {
+                source.setCancelled(true);
+            }
+        }
+        return super.attack(source);
+    }
+
     public void hearNoteBlock(Vector3 noteBlock) {
         if (!this.getServer().getMobAiEnabled() || this.distanceSquared(noteBlock) > ITEM_SEARCH_RANGE_SQUARED) {
             return;
@@ -256,7 +275,6 @@ public class EntityAllay extends EntityFlyingAnimal {
         this.noteBlockTicks = 600;
         this.followTarget = null;
         this.target = this.noteBlockTarget.clone();
-        this.setDataFlag(DATA_FLAGS, DATA_FLAG_DANCING, true);
         this.stayTime = 0;
         this.moveTime = 0;
     }

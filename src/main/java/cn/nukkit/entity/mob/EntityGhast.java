@@ -70,6 +70,9 @@ public class EntityGhast extends EntityFlyingMob {
     @Override
     public void attackEntity(Entity player) {
         if (this.distanceSquared(player) <= (this.attacked ? 4096 : 784)) { // 28 blocks or 64 blocks if attacked)
+            if ((this.attackDelay == 50 || this.attackDelay > 60) && !this.seesTarget(player)) {
+                return;
+            }
             if (Utils.rand()) {
                 this.attackDelay--;
                 return;
@@ -153,3 +156,4 @@ public class EntityGhast extends EntityFlyingMob {
         }
     }
 }
+

@@ -61,6 +61,9 @@ public class EntityEvoker extends EntityWalkingMob {
             }
 
             if (this.attackDelay > 100 + 20 + (vex ? 59 : 40)) { // attackDelay max 200
+                if (!this.seesTarget(player)) {
+                    return;
+                }
                 this.attackDelay = 0;
                 this.setDataFlag(DATA_FLAGS, DATA_FLAG_EVOKER_SPELL, false);
 
@@ -118,3 +121,4 @@ public class EntityEvoker extends EntityWalkingMob {
         return false;
     }
 }
+
