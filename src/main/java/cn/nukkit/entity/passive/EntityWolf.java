@@ -37,6 +37,8 @@ public class EntityWolf extends EntityTameableMob {
 
     private int angryDuration;
 
+    private int beggingTicks;
+
     private DyeColor collarColor = DyeColor.RED;
 
     private int afterInWater = -1;
@@ -115,7 +117,10 @@ public class EntityWolf extends EntityTameableMob {
 
         if (creature instanceof Player) {
             if (distance <= 64 && this.isBeggingItem(((Player) creature).getInventory().getItemInHandFast())) {
-                // TODO: Begging
+                if (this.getServer().getMobAiEnabled()) {
+                    this.beggingTicks = 40;
+                    this.setDataFlag(DATA_FLAGS, DATA_FLAG_INTERESTED, true);
+                }
                 if (distance <= 9) {
                     stayTime = 40;
                 }
@@ -299,6 +304,13 @@ public class EntityWolf extends EntityTameableMob {
     @Override
     public boolean entityBaseTick(int tickDiff) {
         boolean hasUpdate = super.entityBaseTick(tickDiff);
+
+        if (!this.getServer().getMobAiEnabled()) {
+            this.beggingTicks = 0;
+            this.setDataFlag(DATA_FLAGS, DATA_FLAG_INTERESTED, false);
+        } else if (this.beggingTicks > 0 && (this.beggingTicks = Math.max(0, this.beggingTicks - tickDiff)) == 0) {
+            this.setDataFlag(DATA_FLAGS, DATA_FLAG_INTERESTED, false);
+        }
 
         if (this.angryDuration == 1) {
             this.setAngry(false);
