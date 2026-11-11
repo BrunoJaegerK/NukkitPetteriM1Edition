@@ -4,6 +4,8 @@ import cn.nukkit.Player;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.entity.EntityExplosive;
+import cn.nukkit.entity.passive.EntityCat;
+import cn.nukkit.entity.passive.EntityOcelot;
 import cn.nukkit.entity.weather.EntityLightningStrike;
 import cn.nukkit.event.entity.CreeperPowerEvent;
 import cn.nukkit.event.entity.EntityDamageByEntityEvent;
@@ -31,6 +33,8 @@ public class EntityCreeper extends EntityWalkingMob implements EntityExplosive {
     private short bombTime;
     private int explodeTimer; // When ignited by player
     private long seenTarget = -1L;
+    private Entity catThreat;
+    private int catSearchCooldown;
 
     public EntityCreeper(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -117,7 +121,7 @@ public class EntityCreeper extends EntityWalkingMob implements EntityExplosive {
         this.entityBaseTick(tickDiff);
 
         Vector3 target = this.updateMove(tickDiff);
-        if (target != null) {
+        if (this.getServer().getMobAiEnabled() && target != null) {
             double distance = target.distanceSquared(this);
 
             long targetId = target instanceof EntityCreature ? ((EntityCreature) target).getId() : -1L;
@@ -156,6 +160,68 @@ public class EntityCreeper extends EntityWalkingMob implements EntityExplosive {
             this.bombTime = 0;
         }
         return true;
+    }
+
+    @Override
+    public Vector3 updateMove(int tickDiff) {
+        if (this.getServer().getMobAiEnabled()) {
+            this.catSearchCooldown -= tickDiff;
+            if (this.catSearchCooldown <= 0) {
+                this.catThreat = this.findNearbyCat();
+                this.catSearchCooldown = 5;
+            }
+            if (this.catThreat != null && (this.catThreat.closed || !this.catThreat.isAlive()
+                    || this.distanceSquared(this.catThreat) > 36)) {
+                this.catThreat = null;
+                this.target = null;
+                this.followTarget = null;
+            }
+            if (this.catThreat != null) {
+                this.followTarget = null;
+                this.target = this.getFleeTarget(this.catThreat);
+                this.stayTime = 0;
+                this.moveTime = 20;
+            }
+        }
+        return super.updateMove(tickDiff);
+    }
+
+    @Override
+    protected void checkTarget() {
+        super.checkTarget();
+        if (this.getServer().getMobAiEnabled() && this.catThreat != null && !this.catThreat.closed
+                && this.catThreat.isAlive() && this.distanceSquared(this.catThreat) <= 36) {
+            this.followTarget = null;
+            this.target = this.getFleeTarget(this.catThreat);
+            this.stayTime = 0;
+        }
+    }
+
+    private Entity findNearbyCat() {
+        Entity nearest = null;
+        double nearestDistance = 36;
+        for (Entity entity : this.level.getNearbyEntities(this.getBoundingBox().grow(6, 6, 6), this)) {
+            if (!(entity instanceof EntityCat || entity instanceof EntityOcelot) || entity.closed || !entity.isAlive()) {
+                continue;
+            }
+            double distance = this.distanceSquared(entity);
+            if (distance < nearestDistance) {
+                nearest = entity;
+                nearestDistance = distance;
+            }
+        }
+        return nearest;
+    }
+
+    private Vector3 getFleeTarget(Entity threat) {
+        double dx = this.x - threat.x;
+        double dz = this.z - threat.z;
+        double distance = Math.sqrt(dx * dx + dz * dz);
+        if (distance < 0.001) {
+            dx = 1;
+            distance = 1;
+        }
+        return this.add(dx / distance * 8, 0, dz / distance * 8);
     }
 
     @Override

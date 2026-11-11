@@ -25,6 +25,7 @@ public class EntitySpider extends EntityWalkingMob implements EntityArthropod {
 
     private int angry = 0;
     private int brightnessCheckCooldown;
+    private int leapCooldown;
     private boolean dark = true;
     private EntityCreature angryTarget;
 
@@ -94,9 +95,15 @@ public class EntitySpider extends EntityWalkingMob implements EntityArthropod {
             this.angryTarget = (EntityCreature) player;
             this.setAngry(Utils.rand(140, 260));
         }
+        double distance = this.distanceSquared(player);
+        if (this.isAngry() && this.onGround && this.leapCooldown <= 0
+                && distance > 4 && distance <= 64 && Utils.rand(1, 10) == 1) {
+            this.motionY = 0.4;
+            this.leapCooldown = 40;
+        }
         if (!this.isFriendly() || !(player instanceof Player)) {
             if (this.isAngry()) {
-                if (this.attackDelay > 23 && this.distanceSquared(player) < 2 + this.getWidth() * this.getWidth()) {
+                if (this.attackDelay > 23 && distance < 2 + this.getWidth() * this.getWidth()) {
                     this.attackDelay = 0;
                     HashMap<EntityDamageEvent.DamageModifier, Float> damage = new HashMap<>();
                     damage.put(EntityDamageEvent.DamageModifier.BASE, (float) this.getDamage());
@@ -163,6 +170,7 @@ public class EntitySpider extends EntityWalkingMob implements EntityArthropod {
             this.brightnessCheckCooldown = 10;
         }
         this.brightnessCheckCooldown -= tickDiff;
+        this.leapCooldown = Math.max(0, this.leapCooldown - tickDiff);
         if (this.angry > 0) {
             this.angry = Math.max(0, this.angry - tickDiff);
         }
