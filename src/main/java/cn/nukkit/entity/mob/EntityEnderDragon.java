@@ -6,8 +6,10 @@ import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityBoss;
 import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.entity.item.EntityEndCrystal;
+import cn.nukkit.entity.projectile.EntityEnderCharge;
 import cn.nukkit.event.entity.EntityDamageByEntityEvent;
 import cn.nukkit.event.entity.EntityDamageEvent;
+import cn.nukkit.event.entity.ProjectileLaunchEvent;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.nbt.tag.CompoundTag;
@@ -204,7 +206,26 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
 
     @Override
     public void attackEntity(Entity player) {
-        if (this.attackDelay > 20 && this.distanceSquared(player) <= 64) {
+        double distance = this.distanceSquared(player);
+        if (distance > 64 && distance <= 4096 && this.attackDelay > 100 && this.seesTarget(player)) {
+            this.attackDelay = 0;
+            EntityEnderCharge fireball = (EntityEnderCharge) Entity.createEntity("EnderCharge",
+                    this.add(0, this.getEyeHeight(), 0), this);
+            if (fireball == null || fireball.level.hasCollisionBlocks(fireball, fireball.boundingBox)) {
+                if (fireball != null) {
+                    fireball.close();
+                }
+                return;
+            }
+            fireball.setMotion(player.add(0, player.getEyeHeight(), 0).subtract(fireball).normalize().multiply(1));
+            ProjectileLaunchEvent launch = new ProjectileLaunchEvent(fireball);
+            this.server.getPluginManager().callEvent(launch);
+            if (launch.isCancelled()) {
+                fireball.close();
+            } else {
+                fireball.spawnToAll();
+            }
+        } else if (this.attackDelay > 20 && distance <= 64) {
             this.attackDelay = 0;
             HashMap<EntityDamageEvent.DamageModifier, Float> damage = new HashMap<>();
             damage.put(EntityDamageEvent.DamageModifier.BASE, (float) this.getDamage());
