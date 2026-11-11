@@ -2,6 +2,8 @@ package cn.nukkit.entity.projectile;
 
 import cn.nukkit.block.*;
 import cn.nukkit.entity.Entity;
+import cn.nukkit.entity.mob.EntityMob;
+import cn.nukkit.level.GameRule;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.level.particle.GenericParticle;
 import cn.nukkit.level.particle.Particle;
@@ -57,6 +59,11 @@ public class EntityWindCharge extends EntityProjectile {
     }
 
     @Override
+    protected double getBaseDamage() {
+        return 1;
+    }
+
+    @Override
     public boolean onUpdate(int currentTick) {
         if (this.closed) {
             return false;
@@ -89,7 +96,7 @@ public class EntityWindCharge extends EntityProjectile {
         AxisAlignedBB box = new SimpleAxisAlignedBB(minX, minY, minZ, maxX, maxY, maxZ);
 
         for (Entity entity : level.getNearbyEntities(box, this)) {
-            if (entity == this) {
+            if (entity == this || (this.shootingEntity instanceof EntityMob && entity == this.shootingEntity)) {
                 continue;
             }
 
@@ -102,12 +109,15 @@ public class EntityWindCharge extends EntityProjectile {
             }
         }
 
-        for (Block block : level.getCollisionBlocks(this, box, false)) {
-            if (block instanceof BlockButton || block instanceof BlockDoor || block instanceof BlockTrapdoor || block instanceof BlockLever) {
-                if (block.distanceSquared(this) < radiusSquared) {
-                    block.onActivate(null, null);
+        if (!(this.shootingEntity instanceof EntityMob) || level.getGameRules().getBoolean(GameRule.MOB_GRIEFING)) {
+            for (Block block : level.getCollisionBlocks(this, box, false)) {
+                if (block instanceof BlockButton || block instanceof BlockDoor || block instanceof BlockTrapdoor || block instanceof BlockLever) {
+                    if (block.distanceSquared(this) < radiusSquared) {
+                        block.onActivate(null, null);
+                    }
                 }
             }
         }
     }
 }
+

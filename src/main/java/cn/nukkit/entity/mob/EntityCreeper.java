@@ -120,13 +120,16 @@ public class EntityCreeper extends EntityWalkingMob implements EntityExplosive {
         if (target != null) {
             double distance = target.distanceSquared(this);
 
-            if (target instanceof EntityCreature && this.seenTarget == -1L && distance <= 16) {
-                if (this.seesTarget(target)) {
-                    this.seenTarget = ((EntityCreature) target).getId();
-                }
+            long targetId = target instanceof EntityCreature ? ((EntityCreature) target).getId() : -1L;
+            if (targetId != this.seenTarget) {
+                this.seenTarget = -1L;
             }
 
-            if (distance <= 16 && target instanceof EntityCreature && this.seenTarget == ((EntityCreature) target).getId()) { // 4 blocks
+            if (targetId != -1L && this.seenTarget == -1L && distance <= 16 && this.seesTarget(target)) {
+                this.seenTarget = targetId;
+            }
+
+            if (distance <= 16 && targetId != -1L && this.seenTarget == targetId) { // 4 blocks
                 if (this.explodeTimer <= 0) {
                     if (bombTime == 0) {
                         this.getLevel().addLevelEvent(this, LevelEventPacket.EVENT_SOUND_TNT);
@@ -147,6 +150,10 @@ public class EntityCreeper extends EntityWalkingMob implements EntityExplosive {
                     this.bombTime = 0;
                 }
             }
+        } else if (this.explodeTimer <= 0) {
+            this.seenTarget = -1L;
+            this.setDataFlag(DATA_FLAGS, DATA_FLAG_IGNITED, false);
+            this.bombTime = 0;
         }
         return true;
     }
@@ -239,3 +246,4 @@ public class EntityCreeper extends EntityWalkingMob implements EntityExplosive {
         return creature.isAlive() && !creature.closed && distance <= 256;
     }
 }
+

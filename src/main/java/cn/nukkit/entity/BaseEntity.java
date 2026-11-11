@@ -263,10 +263,8 @@ public abstract class BaseEntity extends EntityCreature implements EntityAgeable
                 continue;
             }
 
-            if (creature instanceof BaseEntity && ((BaseEntity) creature).isFriendly() == this.isFriendly() && creature.getId() != this.isAngryTo) {
-                continue;
-            }
-
+            // canTarget and targetOption encode each mob's valid relationships. A generic
+            // friendly/hostile filter here would also suppress valid targets such as mates.
             if (this.targetOption(creature, distance)) {
                 nearest = creature;
                 nearestDistance = distance;
