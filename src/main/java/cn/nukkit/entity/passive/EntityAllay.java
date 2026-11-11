@@ -341,7 +341,11 @@ public class EntityAllay extends EntityFlyingAnimal {
     }
 
     private boolean matchesHeldItem(Item item) {
-        return item != null && !this.heldItem.isNull() && item.equals(this.heldItem, true, true);
+        if (item == null || this.heldItem.isNull() || item.getId() != this.heldItem.getId()) {
+            return false;
+        }
+        boolean damageable = item.getMaxDurability() > 0 && this.heldItem.getMaxDurability() > 0;
+        return item.equals(this.heldItem, !damageable, true);
     }
 
     private void pickUpMatchingItem(EntityItem droppedItem) {
