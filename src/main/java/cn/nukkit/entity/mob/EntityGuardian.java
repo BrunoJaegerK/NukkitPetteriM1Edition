@@ -104,6 +104,9 @@ public class EntityGuardian extends EntitySwimmingMob {
                 this.setDataProperty(new LongEntityData(Entity.DATA_TARGET_EID, laserTargetEid = -1));
                 laserChargeTick = 60;
             }
+        } else if (laserTargetEid != -1) {
+            this.setDataProperty(new LongEntityData(Entity.DATA_TARGET_EID, laserTargetEid = -1));
+            laserChargeTick = 60;
         }
         return hasUpdate;
     }
