@@ -58,12 +58,17 @@ public class EntityGuardian extends EntitySwimmingMob {
     }
 
     @Override
+    public boolean canTarget(Entity entity) {
+        return (entity instanceof Player || entity instanceof EntitySquid) && entity.canBeFollowed();
+    }
+
+    @Override
     public void attackEntity(Entity player) {
-        if (this.attackDelay > 40 && target.distanceSquared(this) <= 225) {
+        if (this.attackDelay > 40 && player.distanceSquared(this) <= 225 && this.seesTarget(player)) {
             this.attackDelay = 0;
 
             HashMap<EntityDamageEvent.DamageModifier, Float> damage = new HashMap<>();
-            damage.put(EntityDamageEvent.DamageModifier.BASE, 1F);
+            damage.put(EntityDamageEvent.DamageModifier.BASE, (float) this.getDamage());
             if (player instanceof Player) {
                 float points = 0;
                 for (Item i : ((Player) player).getInventory().getArmorContents()) {
@@ -118,3 +123,4 @@ public class EntityGuardian extends EntitySwimmingMob {
         return false; // TODO: spawning
     }
 }
+

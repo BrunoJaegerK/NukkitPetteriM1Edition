@@ -2,8 +2,6 @@ package cn.nukkit.entity.mob;
 
 import cn.nukkit.Player;
 import cn.nukkit.block.BlockSponge;
-import cn.nukkit.entity.Entity;
-import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.event.entity.EntityDamageByEntityEvent;
 import cn.nukkit.event.entity.EntityPotionEffectEvent;
 import cn.nukkit.item.Item;
@@ -16,7 +14,7 @@ import cn.nukkit.utils.Utils;
 import java.util.ArrayList;
 import java.util.List;
 
-public class EntityElderGuardian extends EntitySwimmingMob {
+public class EntityElderGuardian extends EntityGuardian {
 
     public static final int NETWORK_ID = 50;
 
@@ -41,20 +39,11 @@ public class EntityElderGuardian extends EntitySwimmingMob {
 
     @Override
     public void initEntity() {
-        this.setMaxHealth(80);
         super.initEntity();
 
+        this.setMaxHealth(80);
         this.setDataFlag(DATA_FLAGS, DATA_FLAG_ELDER, true);
         this.setDamage(new int[]{0, 5, 8, 12});
-    }
-
-    @Override
-    public boolean targetOption(EntityCreature creature, double distance) {
-        return false;
-    }
-
-    @Override
-    public void attackEntity(Entity player) {
     }
 
     @Override
@@ -113,3 +102,4 @@ public class EntityElderGuardian extends EntitySwimmingMob {
         return false;
     }
 }
+

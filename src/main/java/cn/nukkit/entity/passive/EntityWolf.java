@@ -41,6 +41,12 @@ public class EntityWolf extends EntityTameableMob {
 
     private int afterInWater = -1;
 
+    private Entity leapAttackTarget;
+
+    private int leapAttackTicks;
+
+    private float moveMultiplierBeforeLeap = 1.0f;
+
     private final Vector3 tempVector = new Vector3();
 
     public EntityWolf(FullChunk chunk, CompoundTag nbt) {
@@ -233,27 +239,61 @@ public class EntityWolf extends EntityTameableMob {
         if (entity instanceof Player && (
                 (!this.isAngry() && this.isBeggingItem(((Player) entity).getInventory().getItemInHandFast())) ||
                         this.isOwner(entity)
-        )) return;
-
-        if (this.attackDelay > 23 && this.distanceSquared(entity) < 1.5) {
-            this.attackDelay = 0;
-            HashMap<EntityDamageEvent.DamageModifier, Float> damage = new HashMap<>();
-            damage.put(EntityDamageEvent.DamageModifier.BASE, (float) this.getDamage());
-
-            if (entity instanceof Player) {
-                float points = 0;
-                for (Item i : ((Player) entity).getInventory().getArmorContents()) {
-                    points += this.getArmorPoints(i.getId());
-                }
-
-                damage.put(EntityDamageEvent.DamageModifier.ARMOR,
-                        (float) (damage.getOrDefault(EntityDamageEvent.DamageModifier.ARMOR, 0f) - Math.floor(damage.getOrDefault(EntityDamageEvent.DamageModifier.BASE, 1f) * points * 0.04)));
-            }
-
-            this.setMotion(tempVector.setComponents(0, this.getGravity() * 5, 0)); // TODO: Jump before attack
-
-            entity.attack(new EntityDamageByEntityEvent(this, entity, EntityDamageEvent.DamageCause.ENTITY_ATTACK, damage));
+        )) {
+            this.cancelLeapAttack();
+            return;
         }
+
+        if (this.leapAttackTicks > 0) {
+            if (entity != this.leapAttackTarget || entity.closed || !entity.isAlive()) {
+                this.cancelLeapAttack();
+                return;
+            }
+            if (--this.leapAttackTicks == 0) {
+                this.cancelLeapAttack();
+                if (this.distanceSquared(entity) < 2 + this.getWidth() * this.getWidth()) {
+                    this.performMeleeAttack(entity);
+                }
+            }
+            return;
+        }
+
+        double distance = this.distanceSquared(entity);
+        if (this.attackDelay > 23 && distance < 1.5) {
+            this.performMeleeAttack(entity);
+        } else if (this.attackDelay > 23 && this.onGround && distance <= 4) {
+            this.attackDelay = 0;
+            this.leapAttackTarget = entity;
+            this.leapAttackTicks = 5;
+            this.moveMultiplierBeforeLeap = this.moveMultiplier;
+            this.moveMultiplier = Math.max(this.moveMultiplier, 1.8f);
+            this.setMotion(tempVector.setComponents(0, this.getGravity() * 5, 0));
+        }
+    }
+
+    private void cancelLeapAttack() {
+        this.leapAttackTicks = 0;
+        this.leapAttackTarget = null;
+        this.moveMultiplier = this.moveMultiplierBeforeLeap;
+    }
+
+    private void performMeleeAttack(Entity entity) {
+        this.attackDelay = 0;
+        HashMap<EntityDamageEvent.DamageModifier, Float> damage = new HashMap<>();
+        damage.put(EntityDamageEvent.DamageModifier.BASE, (float) this.getDamage());
+
+        if (entity instanceof Player) {
+            float points = 0;
+            for (Item item : ((Player) entity).getInventory().getArmorContents()) {
+                points += this.getArmorPoints(item.getId());
+            }
+            damage.put(EntityDamageEvent.DamageModifier.ARMOR,
+                    (float) (damage.getOrDefault(EntityDamageEvent.DamageModifier.ARMOR, 0f)
+                            - Math.floor(damage.getOrDefault(EntityDamageEvent.DamageModifier.BASE, 1f) * points * 0.04)));
+        }
+
+        entity.attack(new EntityDamageByEntityEvent(this, entity, EntityDamageEvent.DamageCause.ENTITY_ATTACK, damage));
+        this.playAttack();
     }
 
     @Override
