@@ -73,13 +73,12 @@ public abstract class EntityWaterAnimal extends EntitySwimming implements Entity
 
     @Override
     public boolean attack(EntityDamageEvent ev) {
-        super.attack(ev);
-        if (!ev.isCancelled() && ev.getFinalDamage() > 0) {
+        boolean damaged = super.attack(ev);
+        if (damaged && !ev.isCancelled() && ev.getFinalDamage() > 0) {
             this.doPanic(true);
         }
-        return true;
+        return damaged;
     }
-
     @Override
     public boolean canTarget(Entity entity) {
         return this.panicTicks <= 0 && (this.isInLove() || entity instanceof Player)

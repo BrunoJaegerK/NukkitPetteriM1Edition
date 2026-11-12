@@ -72,15 +72,12 @@ public abstract class EntityJumpingAnimal extends EntityJumping implements Entit
 
     @Override
     public boolean attack(EntityDamageEvent ev) {
-        super.attack(ev);
-
-        if (!ev.isCancelled() && ev.getFinalDamage() > 0) {
+        boolean damaged = super.attack(ev);
+        if (damaged && !ev.isCancelled() && ev.getFinalDamage() > 0) {
             this.doPanic(true);
         }
-
-        return true;
+        return damaged;
     }
-
     @Override
     public boolean onInteract(Player player, Item item, Vector3 clickedPos) {
         if (!this.isLeashed()) {

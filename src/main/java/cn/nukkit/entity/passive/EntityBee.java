@@ -179,25 +179,30 @@ public class EntityBee extends EntityFlyingMob implements EntityArthropod { // A
 
     @Override
     public boolean attack(EntityDamageEvent source) {
-        this.setNectar(false);
-
-        if (source.getCause() == EntityDamageEvent.DamageCause.SUFFOCATION) {
-            if (ticksLived < 10) {
-                source.setCancelled();
-                return false;
-            }
+        if (source.getCause() == EntityDamageEvent.DamageCause.SUFFOCATION && ticksLived < 10) {
+            source.setCancelled();
+            return false;
         }
 
+        boolean damaged = super.attack(source);
+        if (!damaged || source.isCancelled() || source.getFinalDamage() <= 0) {
+            return damaged;
+        }
+
+        this.setNectar(false);
         if (source instanceof EntityDamageByEntityEvent) {
             EntityDamageByEntityEvent event = (EntityDamageByEntityEvent) source;
-            for (Entity entity : getLevel().getCollidingEntities(this.getBoundingBox().grow(8, 8, 8))) {
-                if (entity instanceof EntityBee && ((EntityBee) entity).hasSting()) {
-                    ((EntityBee) entity).setAngry(event.getDamager());
+            Entity attacker = event.getDamager();
+            if (attacker != null && !attacker.closed && attacker.isAlive()) {
+                for (Entity entity : getLevel().getCollidingEntities(this.getBoundingBox().grow(8, 8, 8))) {
+                    if (entity instanceof EntityBee && entity != this && ((EntityBee) entity).hasSting()) {
+                        ((EntityBee) entity).setAngry(attacker);
+                    }
                 }
             }
         }
 
-        return super.attack(source);
+        return true;
     }
 
     @Override

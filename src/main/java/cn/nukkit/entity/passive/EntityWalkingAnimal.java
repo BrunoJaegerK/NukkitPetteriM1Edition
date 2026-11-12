@@ -74,15 +74,12 @@ public abstract class EntityWalkingAnimal extends EntityWalking implements Entit
 
     @Override
     public boolean attack(EntityDamageEvent ev) {
-        super.attack(ev);
-
-        if (!ev.isCancelled() && ev.getFinalDamage() > 0) {
+        boolean damaged = super.attack(ev);
+        if (damaged && !ev.isCancelled() && ev.getFinalDamage() > 0) {
             this.doPanic(true);
         }
-
-        return true;
+        return damaged;
     }
-
     @Override
     public boolean canTarget(Entity entity) {
         return (this.isInLove() || entity instanceof Player) && entity.canBeFollowed() && this.getPanicTicks() <= 0;

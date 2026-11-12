@@ -77,7 +77,10 @@ public class EntityLlama extends EntityHorseBase {
 
     @Override
     public boolean attack(EntityDamageEvent ev) {
-        super.attack(ev);
+        boolean damaged = super.attack(ev);
+        if (!damaged || ev.isCancelled() || ev.getFinalDamage() <= 0) {
+            return damaged;
+        }
 
         if (ev instanceof EntityDamageByEntityEvent) {
             Entity damager = ((EntityDamageByEntityEvent) ev).getDamager();
