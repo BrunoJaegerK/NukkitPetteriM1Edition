@@ -32,15 +32,15 @@ public abstract class EntityWalkingAnimal extends EntityWalking implements Entit
             return true;
         }
 
+        int tickDiff = currentTick - this.lastUpdate;
+        this.lastUpdate = currentTick;
+
         if (this.panicTicks > 0) {
-            this.panicTicks--;
-            if (panicTicks == 0) {
+            this.panicTicks = Math.max(0, this.panicTicks - tickDiff);
+            if (this.panicTicks == 0) {
                 doPanic(false);
             }
         }
-
-        int tickDiff = currentTick - this.lastUpdate;
-        this.lastUpdate = currentTick;
         this.entityBaseTick(tickDiff);
 
         Vector3 target = this.updateMove(tickDiff);
