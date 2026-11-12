@@ -3,6 +3,7 @@ package cn.nukkit.entity.passive;
 import cn.nukkit.Player;
 import cn.nukkit.block.Block;
 import cn.nukkit.entity.Entity;
+import cn.nukkit.event.entity.EntityDamageEvent;
 import cn.nukkit.level.Level;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.math.Vector3;
@@ -42,6 +43,15 @@ public class EntityBat extends EntityFlyingAnimal {
     @Override
     public int getKillExperience() {
         return 0;
+    }
+
+    @Override
+    public boolean attack(EntityDamageEvent event) {
+        boolean damaged = super.attack(event);
+        if (damaged) {
+            this.setResting(false);
+        }
+        return damaged;
     }
 
     @Override
