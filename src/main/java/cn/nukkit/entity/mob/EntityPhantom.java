@@ -54,6 +54,7 @@ public class EntityPhantom extends EntityFlyingMob implements EntitySmite {
         this.setMaxHealth(20);
         super.initEntity();
         this.setDamage(new int[]{0, 4, 6, 9});
+        this.nextDive = this.server.getTick() + Utils.rand(200, 400);
     }
 
     public boolean targetOption(EntityCreature creature, double distance) {

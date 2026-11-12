@@ -5,6 +5,7 @@ import cn.nukkit.block.Block;
 import cn.nukkit.block.BlockBricksStone;
 import cn.nukkit.block.BlockMonsterEgg;
 import cn.nukkit.entity.Entity;
+import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.entity.EntityArthropod;
 import cn.nukkit.event.entity.EntityDamageByEntityEvent;
 import cn.nukkit.event.entity.EntityDamageEvent;
@@ -22,6 +23,7 @@ public class EntitySilverfish extends EntityWalkingMob implements EntityArthropo
     public static final int NETWORK_ID = 39;
 
     private boolean convertBlocks;
+    private int alarmCooldownTicks;
 
     public EntitySilverfish(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -82,8 +84,35 @@ public class EntitySilverfish extends EntityWalkingMob implements EntityArthropo
         return 5;
     }
 
+    /**
+     * Nearby silverfish join the fight when one is attacked, matching their
+     * vanilla swarm behavior without creating extra entities or bypassing events.
+     */
+    @Override
+    public boolean attack(EntityDamageEvent event) {
+        boolean damaged = super.attack(event);
+        if (!damaged || event.isCancelled() || !this.getServer().getMobAiEnabled()
+                || this.alarmCooldownTicks > 0 || !(event instanceof EntityDamageByEntityEvent)) {
+            return damaged;
+        }
+
+        Entity attacker = ((EntityDamageByEntityEvent) event).getDamager();
+        if (!(attacker instanceof EntityCreature) || attacker == this || attacker.closed || !attacker.isAlive()) {
+            return damaged;
+        }
+
+        this.alarmCooldownTicks = 100;
+        for (Entity nearby : this.getLevel().getNearbyEntities(this.getBoundingBox().grow(10, 5, 10), this)) {
+            if (nearby instanceof EntitySilverfish && nearby != this && !nearby.closed && nearby.isAlive()) {
+                ((EntitySilverfish) nearby).setTarget(attacker);
+            }
+        }
+        return damaged;
+    }
+
     @Override
     public boolean entityBaseTick(int tickDiff) {
+        this.alarmCooldownTicks = Math.max(0, this.alarmCooldownTicks - tickDiff);
         boolean update = super.entityBaseTick(tickDiff);
         if (!update || this.closed) return false;
         if (convertBlocks && isCollided && followTarget == null && !(target instanceof Entity) && this.age != 0 && age % 40 == 0 && Utils.rand(0, 5) == 3 && isInTickingRange()) {
