@@ -88,7 +88,11 @@ public class EntityIronGolem extends EntityWalkingMob {
     }
 
     public boolean targetOption(EntityCreature creature, double distance) {
-        return (!(creature instanceof Player) || creature.getId() == this.isAngryTo) && !(creature instanceof EntityWolf) && creature.isAlive() && distance <= 256;
+        return this.getServer().getMobAiEnabled()
+                && creature != null && !creature.closed && creature.isAlive()
+                && distance <= 256
+                && (!(creature instanceof Player) || creature.getId() == this.isAngryTo)
+                && !(creature instanceof EntityWolf);
     }
 
     @Override
@@ -138,7 +142,9 @@ public class EntityIronGolem extends EntityWalkingMob {
 
     @Override
     public boolean canTarget(Entity entity) {
-        return entity.canBeFollowed() && (entity.getId() == this.isAngryTo
+        return this.getServer().getMobAiEnabled() && entity != null && !entity.closed
+                && entity.isAlive() && entity.canBeFollowed()
+                && (entity.getId() == this.isAngryTo
                 || entity instanceof EntityMob && !(entity instanceof EntityCreeper)
                 && !(entity instanceof EntitySnowGolem));
     }

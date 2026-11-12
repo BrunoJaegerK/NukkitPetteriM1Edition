@@ -168,15 +168,12 @@ public class EntityPolarBear extends EntityWalkingMob {
 
     @Override
     public boolean attack(EntityDamageEvent ev) {
-        super.attack(ev);
-
-        if (!ev.isCancelled() && ev instanceof EntityDamageByEntityEvent) {
-            if (((EntityDamageByEntityEvent) ev).getDamager() instanceof Player) {
-                this.setAngry(2400);
-            }
+        boolean damaged = super.attack(ev);
+        if (damaged && ev instanceof EntityDamageByEntityEvent
+                && ((EntityDamageByEntityEvent) ev).getDamager() instanceof Player) {
+            this.setAngry(2400);
         }
-
-        return true;
+        return damaged;
     }
 
     @Override

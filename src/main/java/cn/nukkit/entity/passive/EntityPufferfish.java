@@ -17,6 +17,9 @@ public class EntityPufferfish extends EntityFish {
     public static final int NETWORK_ID = 108;
 
     private int puffed = 0;
+    private int puffStage = 0;
+    private int contactCooldown = 0;
+    private int proximityCheckTicks = 0;
 
     public EntityPufferfish(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -55,32 +58,78 @@ public class EntityPufferfish extends EntityFish {
 
     @Override
     public boolean attack(EntityDamageEvent ev) {
-        super.attack(ev);
-
-        if (ev instanceof EntityDamageByEntityEvent && ev.getCause() == EntityDamageEvent.DamageCause.ENTITY_ATTACK) {
-            Entity damager = ((EntityDamageByEntityEvent) ev).getDamager();
-            if (damager instanceof Player) {
-                if (this.isPuffed()) return true;
-                this.puffed = 200;
-                damager.addEffect(Effect.getEffect(Effect.POISON).setDuration(200), EntityPotionEffectEvent.Cause.ATTACK);
-                this.setDataProperty(new ByteEntityData(DATA_PUFFERFISH_SIZE, 2));
-            }
+        boolean damaged = super.attack(ev);
+        if (damaged && ev instanceof EntityDamageByEntityEvent
+                && ev.getCause() == EntityDamageEvent.DamageCause.ENTITY_ATTACK
+                && ((EntityDamageByEntityEvent) ev).getDamager() instanceof Player) {
+            this.setPuffStage(2);
+            this.puffed = 200;
         }
-
-        return true;
+        return damaged;
     }
 
     @Override
     public boolean entityBaseTick(int tickDiff) {
-        if (this.puffed > 0) {
-            this.puffed--;
+        if (this.getServer().getMobAiEnabled() && this.isAlive()) {
+            this.proximityCheckTicks -= tickDiff;
+            if (this.proximityCheckTicks <= 0) {
+                this.proximityCheckTicks = 10;
+                double nearestDistance = 25;
+                for (Entity entity : this.level.getNearbyEntities(this.getBoundingBox().grow(5, 3, 5), this)) {
+                    if (entity instanceof Player) {
+                        Player player = (Player) entity;
+                        double distance = this.distanceSquared(player);
+                        if (!player.closed && player.isAlive()
+                                && (player.isSurvival() || player.isAdventure())
+                                && distance < nearestDistance) {
+                            nearestDistance = distance;
+                        }
+                    }
+                }
+                if (nearestDistance < 25) {
+                    this.setPuffStage(nearestDistance <= 4 ? 2 : 1);
+                    this.puffed = 40;
+                }
+            }
+        }
 
+        if (this.puffed > 0) {
+            this.puffed -= tickDiff;
             if (this.puffed <= 0) {
-                this.setDataProperty(new ByteEntityData(DATA_PUFFERFISH_SIZE, 0));
+                this.puffed = 0;
+                this.setPuffStage(Math.max(0, this.puffStage - 1));
+                if (this.puffStage > 0) {
+                    this.puffed = 20;
+                }
+            }
+        }
+
+        if (this.contactCooldown > 0) {
+            this.contactCooldown = Math.max(0, this.contactCooldown - tickDiff);
+        } else if (this.puffStage == 2 && this.getServer().getMobAiEnabled()) {
+            for (Entity entity : this.level.getNearbyEntities(this.getBoundingBox().grow(1, 1, 1), this)) {
+                if (entity instanceof Player) {
+                    Player player = (Player) entity;
+                    if (!player.closed && player.isAlive() && this.distanceSquared(player) <= 2.25) {
+                        player.addEffect(Effect.getEffect(Effect.POISON).setDuration(60),
+                                EntityPotionEffectEvent.Cause.ATTACK);
+                        this.contactCooldown = 40;
+                        break;
+                    }
+                }
             }
         }
 
         return super.entityBaseTick(tickDiff);
+    }
+
+    private void setPuffStage(int stage) {
+        stage = Math.max(0, Math.min(2, stage));
+        if (this.puffStage == stage) {
+            return;
+        }
+        this.puffStage = stage;
+        this.setDataProperty(new ByteEntityData(DATA_PUFFERFISH_SIZE, stage));
     }
 
     /**
@@ -89,6 +138,6 @@ public class EntityPufferfish extends EntityFish {
      * @return whether the pufferfish is puffed
      */
     public boolean isPuffed() {
-        return this.puffed > 0;
+        return this.puffStage > 0;
     }
 }
