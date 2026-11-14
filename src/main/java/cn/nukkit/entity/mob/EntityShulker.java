@@ -7,7 +7,6 @@ import cn.nukkit.entity.data.IntPositionEntityData;
 import cn.nukkit.entity.data.ShortEntityData;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
-import cn.nukkit.block.Block;
 import cn.nukkit.level.Location;
 import cn.nukkit.event.player.PlayerTeleportEvent;
 import cn.nukkit.entity.data.IntEntityData;
