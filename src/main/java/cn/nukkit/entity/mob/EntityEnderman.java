@@ -38,6 +38,8 @@ public class EntityEnderman extends EntityWalkingMob {
 
     private boolean teleported;
 
+    private int chaseTeleportTicks;
+
     private boolean pickupBlocks;
 
     private Item block;
@@ -176,14 +178,27 @@ public class EntityEnderman extends EntityWalkingMob {
             this.attack(new EntityDamageEvent(this, EntityDamageEvent.DamageCause.DROWNING, 1));
             this.setAngry(0);
             this.teleport();
-        } else if (Utils.rand(0, 500) == 20) {
-            this.setAngry(0);
-            this.teleport();
-        } else if (this.pickupBlocks) {
-            if (this.block == null && Utils.rand(0, 19) == 0) {
-                this.tryPickupNearbyBlock();
-            } else if (this.block != null && Utils.rand(0, 1999) == 0) {
-                this.tryPlaceHeldBlock();
+        } else {
+            Player chaseTarget = this.target instanceof Player ? (Player) this.target
+                    : this.followTarget instanceof Player ? (Player) this.followTarget : null;
+            this.chaseTeleportTicks = Math.max(0, this.chaseTeleportTicks - Math.max(0, tickDiff));
+            if (this.isAngry() && chaseTarget != null && this.distanceSquared(chaseTarget) >= 256
+                    && this.chaseTeleportTicks <= 0) {
+                if (this.teleportTowards(chaseTarget)) {
+                    this.chaseTeleportTicks = Utils.rand(30, 40);
+                } else {
+                    this.chaseTeleportTicks = 10;
+                }
+            } else if (!this.isAngry() && Utils.rand(0, 500) == 20) {
+                this.teleport();
+            }
+
+            if (!this.teleported && this.pickupBlocks) {
+                if (this.block == null && Utils.rand(0, 19) == 0) {
+                    this.tryPickupNearbyBlock();
+                } else if (this.block != null && Utils.rand(0, 1999) == 0) {
+                    this.tryPlaceHeldBlock();
+                }
             }
         }
 
@@ -313,14 +328,66 @@ public class EntityEnderman extends EntityWalkingMob {
      * Teleport enderman to random location in 32x32 range
      */
     public void teleport() {
-        Location to = this.getSafeTpLocation();
-        if (to != null) {
+        this.teleportTo(this.getSafeTpLocation());
+    }
+
+    private boolean teleportTo(Location destination) {
+        if (destination == null) {
+            return false;
+        }
+        this.level.addLevelEvent(this, LevelEventPacket.EVENT_SOUND_ENDERMAN_TELEPORT);
+        if (this.teleport(destination, PlayerTeleportEvent.TeleportCause.UNKNOWN)) {
             this.level.addLevelEvent(this, LevelEventPacket.EVENT_SOUND_ENDERMAN_TELEPORT);
-            if (this.teleport(to, PlayerTeleportEvent.TeleportCause.UNKNOWN)) {
-                this.level.addLevelEvent(this, LevelEventPacket.EVENT_SOUND_ENDERMAN_TELEPORT);
-                this.teleported = true;
+            this.teleported = true;
+            return true;
+        }
+        return false;
+    }
+
+    private boolean teleportTowards(Player target) {
+        double currentDistance = this.distanceSquared(target);
+        Location destination = this.getSafeTpLocationNear(target, currentDistance - 64);
+        return this.teleportTo(destination);
+    }
+
+    private Location getSafeTpLocationNear(Player target, double maxDistanceSquared) {
+        for (int attempt = 0; attempt < 32; attempt++) {
+            int targetX = (int) Math.floor(target.x + Utils.rand(-19, 19));
+            int targetZ = (int) Math.floor(target.z + Utils.rand(-19, 19));
+            int startY = (int) Math.floor(target.y + Utils.rand(-22, 22));
+            FullChunk candidateChunk = this.level.getChunk(targetX >> 4, targetZ >> 4, false);
+            if (candidateChunk == null || !candidateChunk.isGenerated()) {
+                continue;
+            }
+
+            int localX = targetX & 0x0f;
+            int localZ = targetZ & 0x0f;
+            int previousY1 = -1000;
+            int previousY2 = -1000;
+            int previousY3 = -1000;
+            for (int y = Math.min(this.level.getMaxBlockY(), startY); y >= this.level.getMinBlockY(); y--) {
+                if (previousY1 > -1000 && previousY2 > -1000 && previousY3 > -1000
+                        && Block.isBlockSolidById(candidateChunk.getBlockId(localX, y, localZ))
+                        && candidateChunk.getBlockId(localX, previousY1, localZ) == Block.AIR
+                        && candidateChunk.getBlockId(localX, previousY2, localZ) == Block.AIR
+                        && candidateChunk.getBlockId(localX, previousY3, localZ) == Block.AIR) {
+                    Location destination = new Location(targetX + 0.5, previousY1 + 0.1,
+                            targetZ + 0.5, this.level);
+                    double dx = destination.x - target.x;
+                    double dy = destination.y - target.y;
+                    double dz = destination.z - target.z;
+                    double distance = dx * dx + dy * dy + dz * dz;
+                    if (distance >= 16 && distance < maxDistanceSquared) {
+                        return destination;
+                    }
+                    break;
+                }
+                previousY3 = previousY2;
+                previousY2 = previousY1;
+                previousY1 = y;
             }
         }
+        return null;
     }
 
     private Location getSafeTpLocation() {
