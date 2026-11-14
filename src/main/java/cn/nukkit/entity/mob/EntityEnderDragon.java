@@ -165,12 +165,12 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
         this.lastUpdate = currentTick;
         this.entityBaseTick(tickDiff);
 
-        Vector3 activeTarget = null;
         if (this.getServer().getMobAiEnabled()) {
-            activeTarget = this.updateMove(tickDiff);
-            healFromNearbyCrystal(tickDiff);
-            if (activeTarget instanceof Entity && !this.closed) {
-                this.attackEntity((Entity) activeTarget);
+            this.flightPhaseTicks = Math.max(0, this.flightPhaseTicks - tickDiff);
+            this.updateMove(tickDiff);
+            this.healFromNearbyCrystal(tickDiff);
+            if (this.combatTarget != null && !this.combatTarget.closed && this.combatTarget.isAlive() && !this.closed) {
+                this.attackEntity(this.combatTarget);
             }
         } else {
             this.motionX = this.motionY = this.motionZ = 0;
