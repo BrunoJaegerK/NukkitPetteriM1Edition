@@ -56,7 +56,7 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
 
     @Override
     public double getSpeed() {
-        return 3;
+        return 4;
     }
 
     @Override
