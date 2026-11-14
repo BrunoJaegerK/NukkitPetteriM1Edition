@@ -30,6 +30,7 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
     private Vector3 orbitTarget;
     private Player combatTarget;
     private int flightPhaseTicks;
+    private boolean chargingPass;
 
     public EntityEnderDragon(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -116,14 +117,16 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
             double centerZ;
 
             if (this.combatTarget != null) {
-                // Strafing pass: circle the target at a changing radius and height.
-                radius = Utils.rand(18, 30);
+                // Alternate wide strafing arcs with lower, closer charge passes.
+                this.chargingPass = Utils.rand(1, 4) == 1;
+                radius = this.chargingPass ? Utils.rand(8, 14) : Utils.rand(18, 30);
                 centerX = this.combatTarget.x;
-                centerY = this.combatTarget.y + Utils.rand(8, 18);
+                centerY = this.combatTarget.y + (this.chargingPass ? Utils.rand(2, 8) : Utils.rand(8, 18));
                 centerZ = this.combatTarget.z;
-                this.flightPhaseTicks = Utils.rand(60, 100);
+                this.flightPhaseTicks = this.chargingPass ? Utils.rand(30, 50) : Utils.rand(60, 100);
             } else {
                 // No player in range: patrol around the dragon's saved home point.
+                this.chargingPass = false;
                 radius = Utils.rand(24, 40);
                 centerX = this.homeX;
                 centerY = this.homeY + Utils.rand(-6, 10);
