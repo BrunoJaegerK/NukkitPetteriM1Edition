@@ -90,7 +90,7 @@ public class EntityShulkerBullet extends EntityProjectile {
             double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
             if (dist > 0.1) {
-                final double speed = 0.15;
+                final double speed = 0.5;
                 double nx = dx / dist;
                 double ny = dy / dist;
                 double nz = dz / dist;
