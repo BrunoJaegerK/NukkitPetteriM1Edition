@@ -8,6 +8,7 @@ import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.entity.mob.EntityEndermite;
 import cn.nukkit.entity.data.IntEntityData;
 import cn.nukkit.event.entity.EndermanBlockPickUpEvent;
+import cn.nukkit.event.entity.EndermanBlockPlaceEvent;
 import cn.nukkit.event.entity.EntityDamageByEntityEvent;
 import cn.nukkit.event.entity.EntityDamageEvent;
 import cn.nukkit.event.player.PlayerTeleportEvent;
@@ -18,6 +19,7 @@ import cn.nukkit.level.Level;
 import cn.nukkit.level.Location;
 import cn.nukkit.level.biome.Biome;
 import cn.nukkit.level.format.FullChunk;
+import cn.nukkit.math.AxisAlignedBB;
 import cn.nukkit.math.Vector3;
 import cn.nukkit.nbt.NBTIO;
 import cn.nukkit.nbt.tag.CompoundTag;
@@ -177,8 +179,12 @@ public class EntityEnderman extends EntityWalkingMob {
         } else if (Utils.rand(0, 500) == 20) {
             this.setAngry(0);
             this.teleport();
-        } else if (this.pickupBlocks && this.block == null && Utils.rand(0, 19) == 0) {
-            this.tryPickupNearbyBlock();
+        } else if (this.pickupBlocks) {
+            if (this.block == null && Utils.rand(0, 19) == 0) {
+                this.tryPickupNearbyBlock();
+            } else if (this.block != null && Utils.rand(0, 1999) == 0) {
+                this.tryPlaceHeldBlock();
+            }
         }
 
         return super.entityBaseTick(tickDiff);
@@ -224,6 +230,66 @@ public class EntityEnderman extends EntityWalkingMob {
             }
         }
         return true;
+    }
+
+    private void tryPlaceHeldBlock() {
+        if (this.block == null) {
+            return;
+        }
+
+        int x = this.getFloorX() + Utils.rand(-1, 0);
+        int y = this.getFloorY() + Utils.rand(-1, 0);
+        int z = this.getFloorZ() + Utils.rand(-1, 0);
+        if (y <= this.level.getMinBlockY() || y > this.level.getMaxBlockY()) {
+            return;
+        }
+
+        FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+        if (chunk == null || !chunk.isGenerated()) {
+            return;
+        }
+
+        int localX = x & 0x0f;
+        int localZ = z & 0x0f;
+        if (chunk.getBlockId(localX, y, localZ) != Block.AIR) {
+            return;
+        }
+
+        int supportId = chunk.getBlockId(localX, y - 1, localZ);
+        if (!Block.isBlockSolidById(supportId) || supportId == BlockID.BEDROCK) {
+            return;
+        }
+
+        Block placedBlock = Block.get(this.block.getId(), this.block.getDamage(),
+                new Location(x, y, z, this.level));
+        if (!placedBlock.canBePlaced()) {
+            return;
+        }
+
+        AxisAlignedBB box = placedBlock.getBoundingBox();
+        if (box != null) {
+            for (Entity entity : this.level.getNearbyEntities(box, this)) {
+                if (entity.isAlive() && entity.getBoundingBox().intersectsWith(box)) {
+                    return;
+                }
+            }
+        }
+
+        EndermanBlockPlaceEvent event = new EndermanBlockPlaceEvent(this, placedBlock);
+        this.getServer().getPluginManager().callEvent(event);
+        if (event.isCancelled()) {
+            return;
+        }
+
+        // Revalidate after plugins have had a chance to inspect the placement.
+        if (this.level.getBlockIdAt(chunk, x, y, z) != Block.AIR
+                || !Block.isBlockSolidById(this.level.getBlockIdAt(chunk, x, y - 1, z))
+                || !this.level.setBlock(placedBlock, placedBlock, true, true)) {
+            return;
+        }
+
+        this.block = null;
+        this.setDataProperty(new IntEntityData(DATA_ENDERMAN_HELD_RUNTIME_ID, 0));
     }
 
     private void pickupBlock(Block block) {
