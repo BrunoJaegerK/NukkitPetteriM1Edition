@@ -184,6 +184,7 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
             this.target = null;
             this.followTarget = null;
             this.combatTarget = null;
+            this.updateMovement();
         }
         return true;
     }
