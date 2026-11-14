@@ -41,7 +41,7 @@ public class EntityEnderman extends EntityWalkingMob {
 
     private static final IntOpenHashSet canPickup = new IntOpenHashSet(new int[]{
             BlockID.DIRT, BlockID.GRASS, BlockID.PODZOL, BlockID.MYCELIUM, BlockID.COBBLESTONE,
-            BlockID.SAND, BlockID.GRAVEL, BlockID.TALL_GRASS, BlockID.DEAD_BUSH, BlockID.FLOWER,
+            BlockID.SAND, BlockID.GRAVEL, BlockID.TALL_GRASS, BlockID.DEAD_BUSH, BlockID.DANDELION, BlockID.FLOWER,
             BlockID.BROWN_MUSHROOM, BlockID.RED_MUSHROOM, BlockID.TNT, BlockID.CACTUS,
             BlockID.CLAY_BLOCK, BlockID.PUMPKIN, BlockID.LIT_PUMPKIN, BlockID.BROWN_MUSHROOM_BLOCK,
             BlockID.RED_MUSHROOM_BLOCK, BlockID.MELON_BLOCK, BlockID.CARVED_PUMPKIN,
