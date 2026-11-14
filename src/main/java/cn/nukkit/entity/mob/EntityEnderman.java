@@ -78,6 +78,9 @@ public class EntityEnderman extends EntityWalkingMob {
         }
 
         this.pickupBlocks = !server.suomiCraftPEMode() && this.level.getGameRules().getBoolean(GameRule.MOB_GRIEFING);
+        if (this.namedTag.contains("AngerTicks")) {
+            this.setAngry(Math.max(0, this.namedTag.getInt("AngerTicks")));
+        }
     }
 
     @Override
@@ -148,11 +151,7 @@ public class EntityEnderman extends EntityWalkingMob {
         this.teleported = false;
 
         if (this.angry > 0) {
-            if (this.angry == 1) {
-                this.setAngry(0); // Reset flag
-            } else {
-                this.angry--;
-            }
+            this.setAngry(Math.max(0, this.angry - Math.max(1, tickDiff)));
         }
 
         int b = level.getBlockIdAt(chunk, this.getFloorX(), this.getFloorY(), this.getFloorZ());
@@ -266,6 +265,7 @@ public class EntityEnderman extends EntityWalkingMob {
         super.saveNBT();
 
         this.saveBlock();
+        this.namedTag.putInt("AngerTicks", this.angry);
     }
 
     private void saveBlock() {
