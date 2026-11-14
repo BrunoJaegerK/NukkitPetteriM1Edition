@@ -2418,7 +2418,7 @@ public class Player extends EntityHuman implements CommandSender, InventoryHolde
                 this.inventory != null && this.inventory.getHelmetFast().getId() != (255 - BlockID.CARVED_PUMPKIN)) {
 
             // Endermen must be visible to the player's eyes; do not anger them through walls.
-            for (Block block : this.getLineOfSight(8)) {
+            for (Block block : this.getLineOfSight(64)) {
                 if (block != null && block.getId() != Block.AIR) {
                     return;
                 }
@@ -2432,7 +2432,7 @@ public class Player extends EntityHuman implements CommandSender, InventoryHolde
                     this.getY() + 2.9f,
                     this.getZ() + 0.6f
             );
-            for (int i = 0; i < 8; i++) {
+            for (int i = 0; i < 64; i++) {
                 Entity[] entities = this.level.getCollidingEntities(aab.offset(-Math.sin(this.getYaw() * Math.PI / 180) * i, i * (Math.tan(this.getPitch() * -1 * Math.PI / 180)), Math.cos(this.getYaw() * Math.PI / 180) * i));
                 for (Entity e : entities) {
                     if (e instanceof EntityEnderman) {
