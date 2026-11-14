@@ -41,12 +41,14 @@ public class EntityEnderman extends EntityWalkingMob {
     private Item block;
 
     private static final IntOpenHashSet canPickup = new IntOpenHashSet(new int[]{
-            BlockID.DIRT, BlockID.GRASS, BlockID.PODZOL, BlockID.MYCELIUM, BlockID.COBBLESTONE,
-            BlockID.SAND, BlockID.GRAVEL, BlockID.TALL_GRASS, BlockID.DEAD_BUSH, BlockID.DANDELION, BlockID.FLOWER,
-            BlockID.BROWN_MUSHROOM, BlockID.RED_MUSHROOM, BlockID.TNT, BlockID.CACTUS,
-            BlockID.CLAY_BLOCK, BlockID.PUMPKIN, BlockID.LIT_PUMPKIN, BlockID.BROWN_MUSHROOM_BLOCK,
-            BlockID.RED_MUSHROOM_BLOCK, BlockID.MELON_BLOCK, BlockID.CARVED_PUMPKIN,
-            BlockID.ROOTED_DIRT, BlockID.MOSS_BLOCK, BlockID.SWEET_BERRY_BUSH
+            BlockID.DIRT, BlockID.GRASS, BlockID.PODZOL, BlockID.MYCELIUM,
+            BlockID.SAND, BlockID.GRAVEL, BlockID.TALL_GRASS, BlockID.DEAD_BUSH,
+            BlockID.DANDELION, BlockID.FLOWER, BlockID.BROWN_MUSHROOM, BlockID.RED_MUSHROOM,
+            BlockID.TNT, BlockID.CACTUS, BlockID.CLAY_BLOCK, BlockID.PUMPKIN,
+            BlockID.LIT_PUMPKIN, BlockID.BROWN_MUSHROOM_BLOCK, BlockID.RED_MUSHROOM_BLOCK,
+            BlockID.MELON_BLOCK, BlockID.CARVED_PUMPKIN, BlockID.ROOTED_DIRT, BlockID.MOSS_BLOCK,
+            BlockID.MUD, BlockID.MUDDY_MANGROVE_ROOTS, BlockID.CRIMSON_ROOTS, BlockID.WARPED_ROOTS,
+            BlockID.CRIMSON_FUNGUS, BlockID.WARPED_FUNGUS, BlockID.CRIMSON_NYLIUM, BlockID.WARPED_NYLIUM
     });
 
     public EntityEnderman(FullChunk chunk, CompoundTag nbt) {
@@ -175,14 +177,53 @@ public class EntityEnderman extends EntityWalkingMob {
         } else if (Utils.rand(0, 500) == 20) {
             this.setAngry(0);
             this.teleport();
-        } else if (this.pickupBlocks && block == null && this.age != 0 && this.onGround && this.age % 300 == 0 && Utils.rand(0, 20) == 5) {
-            Block block = level.getBlock(chunk, this.getFloorX(), this.getFloorY() - 1, this.getFloorZ(), false);
-            if (canPickup.contains(block.getId())) {
-                this.pickupBlock(block);
-            }
+        } else if (this.pickupBlocks && this.block == null && Utils.rand(0, 19) == 0) {
+            this.tryPickupNearbyBlock();
         }
 
         return super.entityBaseTick(tickDiff);
+    }
+
+    private void tryPickupNearbyBlock() {
+        int x = this.getFloorX() + Utils.rand(-2, 1);
+        int y = this.getFloorY() + Utils.rand(-1, 1);
+        int z = this.getFloorZ() + Utils.rand(-2, 1);
+        FullChunk candidateChunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+        if (candidateChunk == null || !candidateChunk.isGenerated()) {
+            return;
+        }
+
+        Block candidate = this.level.getBlock(candidateChunk, x, y, z, false);
+        if (!canPickup.contains(candidate.getId()) || !this.hasLineOfSightToBlock(candidate)) {
+            return;
+        }
+        this.pickupBlock(candidate);
+    }
+
+    private boolean hasLineOfSightToBlock(Block target) {
+        Vector3 start = this.add(0, this.getEyeHeight(), 0);
+        Vector3 end = new Vector3(target.x + 0.5, target.y + 0.5, target.z + 0.5);
+        double dx = end.x - start.x;
+        double dy = end.y - start.y;
+        double dz = end.z - start.z;
+        double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        int steps = Math.max(1, (int) Math.ceil(distance * 4));
+
+        for (int step = 1; step <= steps; step++) {
+            double progress = step / (double) steps;
+            int x = (int) Math.floor(start.x + dx * progress);
+            int y = (int) Math.floor(start.y + dy * progress);
+            int z = (int) Math.floor(start.z + dz * progress);
+            if (x == target.getFloorX() && y == target.getFloorY() && z == target.getFloorZ()) {
+                return true;
+            }
+
+            FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+            if (chunk == null || !chunk.isGenerated() || chunk.getBlockId(x & 0x0f, y, z & 0x0f) != Block.AIR) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void pickupBlock(Block block) {
