@@ -225,6 +225,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         int radius = 12;
         double nearestDistance = Double.MAX_VALUE;
         Vector3 nearest = null;
+        Entity[] nearbyEntities = this.level.getNearbyEntities(this.boundingBox.grow(16, 8, 16), this);
 
         for (int z = centerZ - radius; z <= centerZ + radius; z++) {
             for (int x = centerX - radius; x <= centerX + radius; x++) {
@@ -239,7 +240,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 int maxY = Math.min(this.level.getMaxBlockY(), centerY + 4);
                 for (int y = minY; y <= maxY; y++) {
                     int blockId = candidate.getBlockId(localX, y, localZ);
-                    if (!containsBlock(wantedBlocks, blockId)) {
+                    if (!containsBlock(wantedBlocks, blockId)
+                            || this.isRoutineBlockReserved(nearbyEntities, x + 0.5, y + 1, z + 0.5, blockId)) {
                         continue;
                     }
 
@@ -255,6 +257,30 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             }
         }
         return nearest;
+    }
+
+    private boolean isRoutineBlockReserved(Entity[] nearbyEntities, double x, double y, double z, int blockId) {
+        // Bells are meeting points and intentionally allow multiple villagers.
+        if (blockId == 461) {
+            return false;
+        }
+
+        for (Entity entity : nearbyEntities) {
+            if (!(entity instanceof EntityVillagerV1) || entity.closed) {
+                continue;
+            }
+            Vector3 reserved = ((EntityVillagerV1) entity).routineTarget;
+            if (reserved == null) {
+                continue;
+            }
+            double dx = reserved.x - x;
+            double dy = reserved.y - y;
+            double dz = reserved.z - z;
+            if (dx * dx + dy * dy + dz * dz <= 1.1) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean containsBlock(int[] blockIds, int blockId) {
