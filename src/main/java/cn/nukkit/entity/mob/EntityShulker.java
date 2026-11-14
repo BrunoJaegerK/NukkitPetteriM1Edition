@@ -1,6 +1,7 @@
 package cn.nukkit.entity.mob;
 
 import cn.nukkit.entity.Entity;
+import cn.nukkit.entity.data.IntEntityData;
 import cn.nukkit.entity.projectile.EntityShulkerBullet;
 import cn.nukkit.event.entity.EntityDamageEvent;
 import cn.nukkit.event.entity.ProjectileLaunchEvent;
@@ -14,6 +15,8 @@ import cn.nukkit.utils.Utils;
 public class EntityShulker extends EntityWalkingMob {
 
     public static final int NETWORK_ID = 54;
+
+    private int peekTicks;
 
     public EntityShulker(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -54,14 +57,33 @@ public class EntityShulker extends EntityWalkingMob {
         }
 
         this.setCollidable(true);
+        this.setDataProperty(new IntEntityData(DATA_SHULKER_PEEK_ID, 0));
+    }
+
+    @Override
+    public boolean entityBaseTick(int tickDiff) {
+        boolean updated = super.entityBaseTick(tickDiff);
+        if (this.peekTicks > 0) {
+            this.peekTicks = Math.max(0, this.peekTicks - Math.max(1, tickDiff));
+            if (this.peekTicks == 0) {
+                this.setDataProperty(new IntEntityData(DATA_SHULKER_PEEK_ID, 0));
+            }
+        }
+        return updated;
     }
 
     @Override
     public void attackEntity(Entity player) {
+        if (player == null || player.closed || !player.isAlive()) {
+            return;
+        }
         if (this.attackDelay > 60 && Utils.rand(1, 32) < 4 && this.distanceSquared(player) <= 256) {
             this.attackDelay = 0;
 
             EntityShulkerBullet shot = (EntityShulkerBullet) Entity.createEntity("ShulkerBullet", this.add(0, this.getEyeHeight(), 0), this);
+            if (shot == null) {
+                return;
+            }
 
             if (shot.level.hasCollisionBlocks(shot, shot.boundingBox)) {
                 shot.close();
@@ -78,6 +100,8 @@ public class EntityShulker extends EntityWalkingMob {
                 shot.close();
             } else {
                 shot.spawnToAll();
+                this.peekTicks = 20;
+                this.setDataProperty(new IntEntityData(DATA_SHULKER_PEEK_ID, 100));
                 this.level.addSound(this, Sound.MOB_SHULKER_SHOOT);
             }
         }
@@ -85,9 +109,9 @@ public class EntityShulker extends EntityWalkingMob {
 
     @Override
     public boolean attack(EntityDamageEvent ev) {
-        super.attack(ev);
+        boolean damaged = super.attack(ev);
 
-        if (!ev.isCancelled()) {
+        if (damaged && !ev.isCancelled()) {
             if (Utils.rand(1, 10) == 1) {
                 this.level.addLevelSoundEvent(this, LevelSoundEventPacket.SOUND_TELEPORT);
                 this.move(Utils.rand(-10, 10), 0, Utils.rand(-10, 10));
