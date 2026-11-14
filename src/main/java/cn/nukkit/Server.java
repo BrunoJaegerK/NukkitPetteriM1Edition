@@ -1141,6 +1141,14 @@ public class Server {
     }
 
     void sendPacketOrdered(Player player, DataPacket packet) {
+        // Keep protocol-specific encoding isolated per recipient. Some legacy
+        // batch paths pass packets without going through Player.dataPacket(),
+        // while broadcast packets may be shared by clients on different versions.
+        if (packet.protocol != player.protocol) {
+            packet = packet.clone();
+            packet.protocol = player.protocol;
+        }
+
         if (this.callBatchPkEvent) {
             //noinspection deprecation
             if (new BatchPacketsEvent(new Player[]{player}, new DataPacket[]{packet}, true).call().isCancelled()) {
