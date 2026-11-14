@@ -119,7 +119,7 @@ public class EntityShulker extends EntityWalkingMob {
             }
         }
 
-        return true;
+        return damaged;
     }
 
     @Override
