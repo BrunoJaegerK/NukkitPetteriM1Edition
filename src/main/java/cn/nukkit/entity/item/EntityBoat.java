@@ -551,8 +551,13 @@ public class EntityBoat extends EntityVehicle implements EntityControllable {
 
         if (left) {
             onPaddle(AnimatePacket.Action.ROW_LEFT, (float) -this.deltaRotation);
+            onPaddle(AnimatePacket.Action.ROW_RIGHT, 0);
         } else if (right) {
             onPaddle(AnimatePacket.Action.ROW_RIGHT, (float) this.deltaRotation);
+            onPaddle(AnimatePacket.Action.ROW_LEFT, 0);
+        } else {
+            onPaddle(AnimatePacket.Action.ROW_LEFT, 0);
+            onPaddle(AnimatePacket.Action.ROW_RIGHT, 0);
         }
     }
 }
