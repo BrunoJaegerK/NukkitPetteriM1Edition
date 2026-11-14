@@ -79,7 +79,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         super.initEntity();
 
         this.inventory = new TradeInventory(this);
-        this.foodPoints = Math.max(0, this.namedTag.getInt("FoodPoints"));
+        this.foodPoints = Math.min(12, Math.max(0, this.namedTag.getInt("FoodPoints")));
 
         try {
             CompoundTag offers = this.namedTag.getCompound("Offers");
@@ -438,8 +438,17 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             if (value <= 0) {
                 continue;
             }
-            this.foodPoints = Math.min(12, this.foodPoints + value * Math.max(1, stack.count));
+            int itemCount = Math.max(1, stack.getCount());
+            int itemsNeeded = Math.max(1, (12 - this.foodPoints + value - 1) / value);
+            int consumed = Math.min(itemCount, itemsNeeded);
+            this.foodPoints += value * consumed;
+
+            if (itemCount > consumed) {
+                Item remainder = Item.get(stack.getId(), stack.getDamage(), itemCount - consumed);
+                this.level.dropItem(dropped, remainder);
+            }
             dropped.close();
+
             if (this.foodPoints >= 12) {
                 this.foodPoints = 0;
                 this.setInLove();
