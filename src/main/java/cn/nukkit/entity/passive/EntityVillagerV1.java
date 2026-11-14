@@ -2,6 +2,7 @@ package cn.nukkit.entity.passive;
 
 import cn.nukkit.Player;
 import cn.nukkit.entity.Entity;
+import cn.nukkit.entity.item.EntityItem;
 import cn.nukkit.entity.mob.EntityWitch;
 import cn.nukkit.entity.mob.EntityMob;
 import cn.nukkit.event.entity.CreatureSpawnEvent;
@@ -35,6 +36,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     private int tradeTier = 0;
     private boolean willing = true;
     private int foodPoints;
+    private int foodPickupTicks;
 
     public EntityVillagerV1(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -198,20 +200,6 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
     @Override
     public boolean onInteract(Player player, Item item, Vector3 clickedPos) {
-        if (!this.isBaby() && !this.isInLove() && !this.isInLoveCooldown()) {
-            int foodValue = getBreedingFoodValue(item);
-            if (foodValue > 0) {
-                this.foodPoints = Math.min(12, this.foodPoints + foodValue);
-                this.level.addLevelSoundEvent(this, LevelSoundEventPacket.SOUND_EAT);
-                this.level.addParticle(new ItemBreakParticle(this.add(0, this.getMountedYOffset(), 0), item));
-                if (this.foodPoints >= 12) {
-                    this.foodPoints = 0;
-                    this.setInLove();
-                    this.lastInteract = player;
-                }
-                return true;
-            }
-        }
         if (!recipes.isEmpty()) {
             player.addWindow(this.getInventory());
             return true;
@@ -268,6 +256,46 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     @Override
     public TradeInventory getInventory() {
         return this.inventory;
+    }
+
+    @Override
+    public boolean entityBaseTick(int tickDiff) {
+        boolean updated = super.entityBaseTick(tickDiff);
+        if (this.isAlive() && !this.isBaby() && !this.isInLove() && !this.isInLoveCooldown()) {
+            this.foodPickupTicks += Math.max(0, tickDiff);
+            if (this.foodPickupTicks >= 20) {
+                this.foodPickupTicks %= 20;
+                this.pickupBreedingFood();
+            }
+        }
+        return updated;
+    }
+
+    private void pickupBreedingFood() {
+        for (Entity entity : this.level.getNearbyEntities(this.boundingBox.grow(1.5, 1, 1.5), this)) {
+            if (!(entity instanceof EntityItem) || entity.closed) {
+                continue;
+            }
+            EntityItem dropped = (EntityItem) entity;
+            if (dropped.getPickupDelay() > 0) {
+                continue;
+            }
+            Item stack = dropped.getItem();
+            if (stack == null || stack.isNull()) {
+                continue;
+            }
+            int value = getBreedingFoodValue(stack);
+            if (value <= 0) {
+                continue;
+            }
+            this.foodPoints = Math.min(12, this.foodPoints + value * Math.max(1, stack.count));
+            dropped.close();
+            if (this.foodPoints >= 12) {
+                this.foodPoints = 0;
+                this.setInLove();
+            }
+            return;
+        }
     }
 
     @Override
