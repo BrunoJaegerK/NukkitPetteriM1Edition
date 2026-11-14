@@ -568,19 +568,13 @@ public class EntityBoat extends EntityVehicle implements EntityControllable {
         if (up) acceleration += 0.04F;
         if (down) acceleration -= 0.005F;
 
-        // Use the same horizontal yaw convention as Entity.getDirectionPlane():
-        // yaw 0 points along +Z, and positive yaw rotates toward -X.
-        // Preserve existing momentum; the boat's drag naturally dissipates
-        // lateral velocity while acceleration follows the current heading.
-        double yawRadians = Math.toRadians(getYaw());
-        double directionX = -Math.sin(yawRadians);
-        double directionZ = Math.cos(yawRadians);
-        Vector3 motion = getMotion();
-
-        setMotion(new Vector3(
-                motion.x + directionX * acceleration,
-                motion.y,
-                motion.z + directionZ * acceleration
+        // Keep the boat's movement vector aligned with Bedrock's vehicle
+        // yaw convention. This is the same conversion used by upstream Nukkit.
+        double yaw = getYaw() - 90;
+        setMotion(getMotion().add(
+                Math.sin(-yaw * 0.017453292F) * acceleration,
+                0,
+                Math.cos(yaw * 0.017453292F) * acceleration
         ));
 
         if (left) {
