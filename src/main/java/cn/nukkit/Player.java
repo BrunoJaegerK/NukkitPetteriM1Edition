@@ -2417,6 +2417,13 @@ public class Player extends EntityHuman implements CommandSender, InventoryHolde
         if (this.server.getMobAiEnabled() && this.age % 20 == 0 && this.getGamemode() % 2 == 0 &&
                 this.inventory != null && this.inventory.getHelmetFast().getId() != (255 - BlockID.CARVED_PUMPKIN)) {
 
+            // Endermen must be visible to the player's eyes; do not anger them through walls.
+            for (Block block : this.getLineOfSight(8)) {
+                if (block != null && block.getId() != Block.AIR) {
+                    return;
+                }
+            }
+
             AxisAlignedBB aab = new SimpleAxisAlignedBB(
                     this.getX() - 0.6f,
                     this.getY() + 1.45f,
