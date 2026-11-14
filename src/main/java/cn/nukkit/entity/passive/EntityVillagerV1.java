@@ -1,6 +1,7 @@
 package cn.nukkit.entity.passive;
 
 import cn.nukkit.Player;
+import cn.nukkit.block.Block;
 import cn.nukkit.block.BlockID;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
@@ -242,23 +243,50 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 int maxY = Math.min(this.level.getMaxBlockY(), centerY + 4);
                 for (int y = minY; y <= maxY; y++) {
                     int blockId = candidate.getBlockId(localX, y, localZ);
-                    if (!containsBlock(wantedBlocks, blockId)
-                            || this.isRoutineBlockReserved(nearbyEntities, x + 0.5, y + 1, z + 0.5, blockId)) {
+                    if (!containsBlock(wantedBlocks, blockId)) {
                         continue;
                     }
 
-                    double dx = x + 0.5 - this.x;
-                    double dy = y + 1 - this.y;
-                    double dz = z + 0.5 - this.z;
+                    Vector3 standPosition = this.findRoutineStandPosition(x, y, z);
+                    if (standPosition == null || this.isRoutineBlockReserved(nearbyEntities,
+                            standPosition.x, standPosition.y, standPosition.z, blockId)) {
+                        continue;
+                    }
+
+                    double dx = standPosition.x - this.x;
+                    double dy = standPosition.y - this.y;
+                    double dz = standPosition.z - this.z;
                     double distance = dx * dx + dy * dy + dz * dz;
                     if (distance < nearestDistance) {
                         nearestDistance = distance;
-                        nearest = new Vector3(x + 0.5, y + 1, z + 0.5);
+                        nearest = standPosition;
                     }
                 }
             }
         }
         return nearest;
+    }
+
+    private Vector3 findRoutineStandPosition(int poiX, int poiY, int poiZ) {
+        int[][] offsets = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {0, 0}};
+        for (int[] offset : offsets) {
+            int x = poiX + offset[0];
+            int z = poiZ + offset[1];
+            cn.nukkit.level.format.FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+            if (chunk == null || !chunk.isGenerated()) {
+                continue;
+            }
+
+            int localX = x & 0x0f;
+            int localZ = z & 0x0f;
+            int support = chunk.getBlockId(localX, poiY - 1, localZ);
+            int feet = chunk.getBlockId(localX, poiY, localZ);
+            int head = chunk.getBlockId(localX, poiY + 1, localZ);
+            if (Block.isBlockSolidById(support) && feet == Block.AIR && head == Block.AIR) {
+                return new Vector3(x + 0.5, poiY, z + 0.5);
+            }
+        }
+        return null;
     }
 
     private boolean isRoutineBlockReserved(Entity[] nearbyEntities, double x, double y, double z, int blockId) {
