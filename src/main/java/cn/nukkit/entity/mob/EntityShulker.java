@@ -1,6 +1,10 @@
 package cn.nukkit.entity.mob;
 
 import cn.nukkit.Player;
+import cn.nukkit.block.Block;
+import cn.nukkit.entity.data.ByteEntityData;
+import cn.nukkit.entity.data.IntPositionEntityData;
+import cn.nukkit.entity.data.ShortEntityData;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.block.Block;
@@ -22,6 +26,7 @@ public class EntityShulker extends EntityWalkingMob {
     public static final int NETWORK_ID = 54;
 
     private int peekTicks;
+    private int attachmentCheckTicks;
 
     public EntityShulker(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -63,6 +68,7 @@ public class EntityShulker extends EntityWalkingMob {
 
         this.setCollidable(true);
         this.setDataProperty(new IntEntityData(DATA_SHULKER_PEEK_ID, 0));
+        this.updateAttachmentMetadata();
     }
 
     @Override
@@ -72,6 +78,13 @@ public class EntityShulker extends EntityWalkingMob {
             this.peekTicks = Math.max(0, this.peekTicks - Math.max(1, tickDiff));
             if (this.peekTicks == 0) {
                 this.setDataProperty(new IntEntityData(DATA_SHULKER_PEEK_ID, 0));
+            }
+        }
+        this.attachmentCheckTicks += Math.max(0, tickDiff);
+        if (this.attachmentCheckTicks >= 20) {
+            this.attachmentCheckTicks %= 20;
+            if (!this.updateAttachmentMetadata()) {
+                this.teleportToSafePosition();
             }
         }
         return updated;
@@ -85,6 +98,43 @@ public class EntityShulker extends EntityWalkingMob {
         Player player = (Player) creature;
         return !player.closed && player.spawned && player.isAlive()
                 && (player.isSurvival() || player.isAdventure()) && distance <= 256;
+    }
+
+    /**
+     * Publish the support block and face that anchor this Shulker to the world.
+     * Bedrock clients use these metadata fields to render the shell orientation.
+     */
+    private boolean updateAttachmentMetadata() {
+        int x = this.getFloorX();
+        int y = this.getFloorY();
+        int z = this.getFloorZ();
+        int[][] supports = {
+                {0, -1, 0, 1}, // block below: attach to its upper face
+                {0, 1, 0, 0},  // block above: attach to its lower face
+                {0, 0, -1, 3}, // north
+                {0, 0, 1, 2},  // south
+                {-1, 0, 0, 5}, // west
+                {1, 0, 0, 4}   // east
+        };
+
+        for (int[] support : supports) {
+            int sx = x + support[0];
+            int sy = y + support[1];
+            int sz = z + support[2];
+            cn.nukkit.level.format.FullChunk chunk = this.level.getChunk(sx >> 4, sz >> 4, false);
+            if (chunk == null || !chunk.isGenerated()) {
+                continue;
+            }
+            if (Block.isBlockSolidById(chunk.getBlockId(sx & 0x0f, sy, sz & 0x0f))) {
+                this.setDataProperty(new ByteEntityData(DATA_SHULKER_ATTACH_FACE, support[3]));
+                this.setDataProperty(new ShortEntityData(DATA_SHULKER_ATTACHED, 1));
+                this.setDataProperty(new IntPositionEntityData(DATA_SHULKER_ATTACH_POS, sx, sy, sz));
+                return true;
+            }
+        }
+
+        this.setDataProperty(new ShortEntityData(DATA_SHULKER_ATTACHED, 0));
+        return false;
     }
 
     /**
@@ -116,6 +166,7 @@ public class EntityShulker extends EntityWalkingMob {
 
             Location destination = new Location(tx + 0.5, ty, tz + 0.5, this.yaw, this.pitch, this.level);
             if (this.teleport(destination, PlayerTeleportEvent.TeleportCause.UNKNOWN)) {
+                this.updateAttachmentMetadata();
                 return true;
             }
         }
