@@ -39,7 +39,14 @@ public class EntityEnderman extends EntityWalkingMob {
 
     private Item block;
 
-    private static final IntOpenHashSet canPickup = new IntOpenHashSet(new int[]{BlockID.DIRT, BlockID.GRASS, BlockID.PODZOL, BlockID.MYCELIUM, BlockID.COBBLESTONE, BlockID.SAND, BlockID.GRAVEL});
+    private static final IntOpenHashSet canPickup = new IntOpenHashSet(new int[]{
+            BlockID.DIRT, BlockID.GRASS, BlockID.PODZOL, BlockID.MYCELIUM, BlockID.COBBLESTONE,
+            BlockID.SAND, BlockID.GRAVEL, BlockID.TALL_GRASS, BlockID.DEAD_BUSH, BlockID.FLOWER,
+            BlockID.BROWN_MUSHROOM, BlockID.RED_MUSHROOM, BlockID.TNT, BlockID.CACTUS,
+            BlockID.CLAY_BLOCK, BlockID.PUMPKIN, BlockID.LIT_PUMPKIN, BlockID.BROWN_MUSHROOM_BLOCK,
+            BlockID.RED_MUSHROOM_BLOCK, BlockID.MELON_BLOCK, BlockID.CARVED_PUMPKIN,
+            BlockID.ROOTED_DIRT, BlockID.MOSS_BLOCK, BlockID.SWEET_BERRY_BUSH
+    });
 
     public EntityEnderman(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -149,6 +156,8 @@ public class EntityEnderman extends EntityWalkingMob {
         }
 
         this.teleported = false;
+        this.pickupBlocks = !server.suomiCraftPEMode()
+                && this.level.getGameRules().getBoolean(GameRule.MOB_GRIEFING);
 
         if (this.angry > 0) {
             this.setAngry(Math.max(0, this.angry - Math.max(1, tickDiff)));
