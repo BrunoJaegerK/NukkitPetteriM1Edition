@@ -2,6 +2,7 @@ package cn.nukkit.entity.passive;
 
 import cn.nukkit.Player;
 import cn.nukkit.entity.Entity;
+import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.entity.item.EntityItem;
 import cn.nukkit.entity.mob.EntityWitch;
 import cn.nukkit.entity.mob.EntityMob;
@@ -97,6 +98,22 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
     public void setProfession(int profession) {
         this.namedTag.putInt("Profession", profession);
+    }
+
+    @Override
+    public boolean canTarget(Entity entity) {
+        if (this.isBaby() && entity instanceof EntityVillagerV1 && !entity.isBaby()) {
+            return entity.isAlive() && !entity.closed && entity.canBeFollowed();
+        }
+        return super.canTarget(entity);
+    }
+
+    @Override
+    public boolean targetOption(EntityCreature creature, double distance) {
+        if (this.isBaby() && creature instanceof EntityVillagerV1 && !creature.isBaby()) {
+            return distance <= 64;
+        }
+        return super.targetOption(creature, distance);
     }
 
     /**
