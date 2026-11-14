@@ -119,9 +119,9 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
             if (this.combatTarget != null) {
                 // Alternate wide strafing arcs with lower, closer charge passes.
                 this.chargingPass = Utils.rand(1, 4) == 1;
-                radius = this.chargingPass ? Utils.rand(8, 14) : Utils.rand(18, 30);
+                radius = this.chargingPass ? Utils.rand(4, 10) : Utils.rand(18, 30);
                 centerX = this.combatTarget.x;
-                centerY = this.combatTarget.y + (this.chargingPass ? Utils.rand(2, 8) : Utils.rand(8, 18));
+                centerY = this.combatTarget.y + (this.chargingPass ? Utils.rand(1, 4) : Utils.rand(8, 18));
                 centerZ = this.combatTarget.z;
                 this.flightPhaseTicks = this.chargingPass ? Utils.rand(30, 50) : Utils.rand(60, 100);
             } else {
