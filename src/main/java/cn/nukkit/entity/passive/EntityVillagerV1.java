@@ -243,7 +243,9 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         long time = Math.floorMod((long) this.level.getTime(), 24000L);
         int[] wantedBlocks = null;
 
-        if (time >= 2000 && time < 9000) {
+        if (this.level.isRaining()) {
+            wantedBlocks = new int[]{BlockID.BED_BLOCK};
+        } else if (time >= 2000 && time < 9000) {
             switch (this.getProfession()) {
                 case PROFESSION_FARMER:
                     wantedBlocks = new int[]{BlockID.COMPOSTER};
@@ -533,7 +535,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
     private boolean isFarmerWorkTime() {
         long time = this.level.getTime() % 24000;
-        return time >= 2000 && time < 9000;
+        return !this.level.isRaining() && time >= 2000 && time < 9000;
     }
 
     private Vector3 findNearestMatureCrop() {
