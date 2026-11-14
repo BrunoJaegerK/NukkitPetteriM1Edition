@@ -465,8 +465,28 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 this.foodPickupTicks %= 20;
                 this.pickupBreedingFood();
             }
+            if (this.foodPoints >= 8 && this.age % 100 == 0) {
+                this.shareFoodWithNearbyVillager();
+            }
         }
         return updated;
+    }
+
+    private void shareFoodWithNearbyVillager() {
+        for (Entity entity : this.level.getNearbyEntities(this.boundingBox.grow(3, 2, 3), this)) {
+            if (!(entity instanceof EntityVillagerV1) || entity.closed || !entity.isAlive()) {
+                continue;
+            }
+            EntityVillagerV1 other = (EntityVillagerV1) entity;
+            if (other.isBaby() || other.isInLoveCooldown() || other.isInLove() || other.foodPoints > 4) {
+                continue;
+            }
+
+            // Four food points are transferred as one bread item the recipient can pick up.
+            this.level.dropItem(this, Item.get(Item.BREAD, 0, 1));
+            this.foodPoints -= 4;
+            return;
+        }
     }
 
     private void pickupBreedingFood() {
