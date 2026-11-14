@@ -356,9 +356,20 @@ public class EntityBoat extends EntityVehicle implements EntityControllable {
             }
         }
 
-        // If every horizontal exit is obstructed, place the entity above the
-        // boat rather than inside a wall. Water remains a valid fallback.
-        Vector3 fallback = new Vector3(this.x, this.y + this.getHeight() + 0.1, this.z);
+        // If every horizontal exit is obstructed, search upward above the
+        // boat. Do not assume the space directly above it is also clear.
+        double fallbackY = this.y + this.getHeight() + 0.1;
+        for (int step = 0; step < 8; step++) {
+            Vector3 fallback = new Vector3(this.x, fallbackY + step * 0.5, this.z);
+            passenger.setPosition(fallback);
+            if (this.level.getCollisionBlocks(passenger.getBoundingBox()).length == 0) {
+                return fallback;
+            }
+        }
+
+        // Last resort: keep the entity above the boat; the next normal entity
+        // movement tick can resolve any remaining obstruction.
+        Vector3 fallback = new Vector3(this.x, fallbackY + 4.0, this.z);
         passenger.setPosition(fallback);
         return fallback;
     }
