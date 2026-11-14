@@ -107,6 +107,11 @@ public class EntityShulker extends EntityWalkingMob {
             return false;
         }
         if (this.retaliationTicks > 0 && creature == this.lastAttacker) {
+            if (creature instanceof Player) {
+                Player attacker = (Player) creature;
+                return !attacker.closed && attacker.spawned && attacker.isAlive()
+                        && (attacker.isSurvival() || attacker.isAdventure()) && distance <= 225;
+            }
             return !creature.closed && creature.isAlive() && distance <= 225;
         }
         if (!(creature instanceof Player)) {
