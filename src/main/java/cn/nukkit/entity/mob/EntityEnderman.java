@@ -212,13 +212,18 @@ public class EntityEnderman extends EntityWalkingMob {
         int z = (int) pos.z & 0x0f;
         int previousY1 = -1000;
         int previousY2 = -1000;
+        int previousY3 = -1000;
         if (chunk != null && chunk.isGenerated()) {
             for (int y = Math.min(this.level.getMaxBlockY(), (int) pos.y); y >= this.level.getMinBlockY(); y--) {
-                if (previousY1 > -1000 && previousY2 > -1000) {
-                    if (Block.isBlockSolidById(chunk.getBlockId(x, y, z)) && chunk.getBlockId(x, previousY1, z) == 0 && chunk.getBlockId(x, previousY2, z) == 0) {
+                if (previousY1 > -1000 && previousY2 > -1000 && previousY3 > -1000) {
+                    if (Block.isBlockSolidById(chunk.getBlockId(x, y, z))
+                            && chunk.getBlockId(x, previousY1, z) == 0
+                            && chunk.getBlockId(x, previousY2, z) == 0
+                            && chunk.getBlockId(x, previousY3, z) == 0) {
                         return new Location(pos.x + 0.5, previousY1 + 0.1, pos.z + 0.5, this.level);
                     }
                 }
+                previousY3 = previousY2;
                 previousY2 = previousY1;
                 previousY1 = y;
             }
