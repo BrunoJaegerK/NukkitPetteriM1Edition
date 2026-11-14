@@ -13,6 +13,7 @@ import cn.nukkit.entity.data.IntEntityData;
 import cn.nukkit.entity.projectile.EntityShulkerBullet;
 import cn.nukkit.event.entity.EntityDamageEvent;
 import cn.nukkit.event.entity.EntityDamageByChildEntityEvent;
+import cn.nukkit.event.entity.EntityDamageByEntityEvent;
 import cn.nukkit.event.entity.ProjectileLaunchEvent;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.Sound;
@@ -27,6 +28,8 @@ public class EntityShulker extends EntityWalkingMob {
 
     private int peekTicks;
     private int attachmentCheckTicks;
+    private EntityCreature lastAttacker;
+    private int retaliationTicks;
 
     public EntityShulker(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -82,6 +85,10 @@ public class EntityShulker extends EntityWalkingMob {
             }
         }
         this.attachmentCheckTicks += Math.max(0, tickDiff);
+        this.retaliationTicks = Math.max(0, this.retaliationTicks - Math.max(0, tickDiff));
+        if (this.retaliationTicks == 0) {
+            this.lastAttacker = null;
+        }
         if (this.attachmentCheckTicks >= 20) {
             this.attachmentCheckTicks %= 20;
             if (!this.updateAttachmentMetadata()) {
@@ -96,9 +103,18 @@ public class EntityShulker extends EntityWalkingMob {
         if (!(creature instanceof Player)) {
             return false;
         }
+        if (this.getServer().getDifficulty() == 0) {
+            return false;
+        }
+        if (this.retaliationTicks > 0 && creature == this.lastAttacker) {
+            return !creature.closed && creature.isAlive() && distance <= 225;
+        }
+        if (!(creature instanceof Player)) {
+            return false;
+        }
         Player player = (Player) creature;
-        return this.getServer().getDifficulty() > 0 && !player.closed && player.spawned && player.isAlive()
-                && (player.isSurvival() || player.isAdventure()) && distance <= 256;
+        return !player.closed && player.spawned && player.isAlive()
+                && (player.isSurvival() || player.isAdventure()) && distance <= 225;
     }
 
     /**
@@ -196,7 +212,8 @@ public class EntityShulker extends EntityWalkingMob {
         if (player == null || player.closed || !player.isAlive()) {
             return;
         }
-        if (this.attackDelay > 60 && Utils.rand(1, 32) < 4 && this.distanceSquared(player) <= 256) {
+        if (this.attackDelay > Utils.rand(20, 60) && Utils.rand(1, 32) < 4
+                && this.distanceSquared(player) <= 225 && this.seesTarget(player)) {
             this.attackDelay = 0;
 
             EntityShulkerBullet shot = (EntityShulkerBullet) Entity.createEntity("ShulkerBullet", this.add(0, this.getEyeHeight(), 0), this);
@@ -239,6 +256,14 @@ public class EntityShulker extends EntityWalkingMob {
         }
 
         boolean damaged = super.attack(ev);
+        if (damaged && !ev.isCancelled() && ev instanceof EntityDamageByEntityEvent) {
+            Entity damager = ((EntityDamageByEntityEvent) ev).getDamager();
+            if (damager instanceof EntityCreature && !(damager instanceof EntityShulker)
+                    && !damager.closed && damager.isAlive()) {
+                this.lastAttacker = (EntityCreature) damager;
+                this.retaliationTicks = 100;
+            }
+        }
         if (damaged && !ev.isCancelled() && !this.isAlive()
                 && ev instanceof EntityDamageByChildEntityEvent
                 && ((EntityDamageByChildEntityEvent) ev).getChild() instanceof EntityShulkerBullet) {
