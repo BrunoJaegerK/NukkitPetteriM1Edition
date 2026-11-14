@@ -3711,7 +3711,32 @@ public class Player extends EntityHuman implements CommandSender, InventoryHolde
                     return;
                 }
 
-                if (this.riding instanceof EntityControllable &&
+                // Bedrock 1.26.40+ sends the predicted vehicle position and
+                // vehicle rotation in PlayerAuthInputPacket. For boats, consume
+                // those fields instead of treating the player's local Move Vector
+                // as a complete server-side boat simulation. Otherwise the client
+                // can advance while the server boat stays behind, then snap back
+                // when the player dismounts.
+                if (this.protocol >= ProtocolInfo.v1_26_40 && this.riding instanceof EntityBoat && this.riding.isControlling(this)) {
+                    EntityBoat boat = (EntityBoat) this.riding;
+                    if (boat.getId() == authPacket.getPredictedVehicle()) {
+                        int block = this.level.getBlockIdAt(boat.chunk, boat.getFloorX(), boat.getFloorY() - 1, boat.getFloorZ());
+                        int max = block == BlockID.BLUE_ICE ? 16 : (block == BlockID.ICE || block == BlockID.PACKED_ICE || block == BlockID.FROSTED_ICE || (block == BlockID.AIR && (lastBoatY - boat.y) > 1)) ? 10 : 2;
+
+                        this.lastBoatY = boat.y;
+
+                        if (this.temporalVector.setComponents(authPacket.getPosition().getX(), authPacket.getPosition().getY(), authPacket.getPosition().getZ()).distanceSquared(boat) < max) {
+                            // VehicleRotation.Y is the vehicle yaw. Bedrock's boat
+                            // orientation is offset by 90 degrees from Nukkit's.
+                            boat.onInput(
+                                    authPacket.getPosition().getX(),
+                                    authPacket.getPosition().getY(),
+                                    authPacket.getPosition().getZ(),
+                                    authPacket.getVehicleRotation().getY() - 90
+                            );
+                        }
+                    }
+                } else if (this.riding instanceof EntityControllable &&
                         (this.protocol >= ProtocolInfo.v1_21_130_28 || !(this.riding instanceof EntityBoat)) &&
                         riding.isControlling(this)) {
                     boolean jumping = authPacket.getInputData().contains(AuthInputAction.JUMPING);
