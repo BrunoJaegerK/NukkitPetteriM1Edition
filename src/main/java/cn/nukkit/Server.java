@@ -1129,7 +1129,13 @@ public class Server {
     public void batchPackets(Player[] players, DataPacket[] packets) {
         for (DataPacket packet : packets) {
             for (Player player : players) {
-                sendPacketOrdered(player, packet);
+                // A packet broadcast through this legacy path must be copied
+                // per recipient: each Bedrock client may use a different protocol.
+                // Player.dataPacket() normally performs this copy and assigns
+                // the recipient protocol, but this method bypasses that path.
+                DataPacket playerPacket = packet.clone();
+                playerPacket.protocol = player.protocol;
+                sendPacketOrdered(player, playerPacket);
             }
         }
     }
