@@ -118,7 +118,7 @@ public class EntityEnderman extends EntityWalkingMob {
     @Override
     public boolean attack(EntityDamageEvent ev) {
         if (ev.getCause() == EntityDamageEvent.DamageCause.PROJECTILE) {
-            setAngry(2400);
+            setAngry(500);
             ev.setCancelled(true);
             this.teleport();
             return false;
@@ -127,7 +127,7 @@ public class EntityEnderman extends EntityWalkingMob {
         boolean damaged = super.attack(ev);
         if (damaged && !ev.isCancelled()) {
             if (ev.getCause() == EntityDamageEvent.DamageCause.ENTITY_ATTACK) {
-                setAngry(2400);
+                setAngry(500);
             }
 
             if (!this.teleported && Utils.rand(1, 10) == 1) {
@@ -388,7 +388,7 @@ public class EntityEnderman extends EntityWalkingMob {
     }
 
     public void stareToAngry() {
-        setAngry(2400);
+        setAngry(500);
     }
 
     @Override
