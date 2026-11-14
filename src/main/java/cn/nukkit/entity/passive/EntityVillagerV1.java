@@ -8,6 +8,7 @@ import cn.nukkit.entity.item.EntityItem;
 import cn.nukkit.entity.mob.EntityWitch;
 import cn.nukkit.entity.mob.EntityMob;
 import cn.nukkit.event.entity.CreatureSpawnEvent;
+import cn.nukkit.entity.route.WalkerRouteFinder;
 import cn.nukkit.inventory.InventoryHolder;
 import cn.nukkit.inventory.TradeInventory;
 import cn.nukkit.inventory.TradeInventoryRecipe;
@@ -43,6 +44,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
     public EntityVillagerV1(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
+        this.route = new WalkerRouteFinder(this);
     }
 
     @Override
