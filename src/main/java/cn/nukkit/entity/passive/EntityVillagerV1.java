@@ -379,6 +379,9 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     @Override
     public boolean entityBaseTick(int tickDiff) {
         boolean updated = super.entityBaseTick(tickDiff);
+        if (this.routineSearchTicks > 0) {
+            this.routineSearchTicks = Math.max(0, this.routineSearchTicks - Math.max(0, tickDiff));
+        }
         if (this.getServer().getMobAiEnabled() && this.level.getGameRules().getBoolean(GameRule.MOB_GRIEFING)
                 && this.isAlive() && !this.isBaby() && !this.isInLove() && !this.isInLoveCooldown()) {
             this.foodPickupTicks += Math.max(0, tickDiff);
