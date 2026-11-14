@@ -5,6 +5,7 @@ import cn.nukkit.block.Block;
 import cn.nukkit.block.BlockID;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
+import cn.nukkit.entity.mob.EntityEndermite;
 import cn.nukkit.entity.data.IntEntityData;
 import cn.nukkit.event.entity.EndermanBlockPickUpEvent;
 import cn.nukkit.event.entity.EntityDamageByEntityEvent;
@@ -262,6 +263,9 @@ public class EntityEnderman extends EntityWalkingMob {
 
     @Override
     public boolean targetOption(EntityCreature creature, double distance) {
+        if (creature instanceof EntityEndermite) {
+            return !creature.closed && creature.isAlive() && distance <= 4096;
+        }
         if (!isAngry() || !(creature instanceof Player)) {
             return false;
         }
