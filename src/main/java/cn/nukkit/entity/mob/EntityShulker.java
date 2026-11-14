@@ -55,7 +55,7 @@ public class EntityShulker extends EntityWalkingMob {
 
     @Override
     protected void initEntity() {
-        this.setMaxHealth(15);
+        this.setMaxHealth(30);
         super.initEntity();
         this.fireProof = true;
         this.noFallDamage = true;
@@ -96,7 +96,7 @@ public class EntityShulker extends EntityWalkingMob {
             return false;
         }
         Player player = (Player) creature;
-        return !player.closed && player.spawned && player.isAlive()
+        return this.getServer().getDifficulty() > 0 && !player.closed && player.spawned && player.isAlive()
                 && (player.isSurvival() || player.isAdventure()) && distance <= 256;
     }
 
@@ -210,15 +210,51 @@ public class EntityShulker extends EntityWalkingMob {
 
     @Override
     public boolean attack(EntityDamageEvent ev) {
-        boolean damaged = super.attack(ev);
+        // A closed shell deflects projectiles and grants the Shulker its 20 armor points.
+        if (this.peekTicks <= 0 && ev.getCause() == EntityDamageEvent.DamageCause.PROJECTILE) {
+            ev.setCancelled(true);
+        } else if (this.peekTicks <= 0 && ev.canBeReducedByArmor()) {
+            float baseDamage = ev.getDamage(EntityDamageEvent.DamageModifier.BASE);
+            float effectiveArmor = Math.min(20f, Math.max(4f, 20f - baseDamage / 2f));
+            ev.setDamage(EntityDamageEvent.DamageModifier.ARMOR, -(baseDamage * effectiveArmor / 25f));
+        }
 
-        if (damaged && !ev.isCancelled()) {
-            if (Utils.rand(1, 10) == 1 && this.teleportToSafePosition()) {
+        boolean damaged = super.attack(ev);
+        if (damaged && !ev.isCancelled() && this.getHealth() < this.getMaxHealth() / 2f) {
+            if (Utils.rand(1, 4) == 1 && this.teleportToSafePosition()) {
                 this.level.addLevelSoundEvent(this, LevelSoundEventPacket.SOUND_TELEPORT);
             }
         }
-
         return damaged;
+    }
+
+    @Override
+    public boolean onUpdate(int currentTick) {
+        // Bedrock Shulkers remain in Peaceful, but become passive.
+        if (this.getServer().getDifficulty() != 0) {
+            return super.onUpdate(currentTick);
+        }
+        if (this.closed) {
+            return false;
+        }
+        if (!this.isAlive()) {
+            if (++this.deadTicks >= 23) {
+                this.close();
+                return false;
+            }
+            return true;
+        }
+
+        int tickDiff = currentTick - this.lastUpdate;
+        if (tickDiff <= 0 && !this.justCreated) {
+            return false;
+        }
+        this.lastUpdate = currentTick;
+        this.entityBaseTick(tickDiff);
+        this.motionX = this.motionY = this.motionZ = 0;
+        this.target = null;
+        this.followTarget = null;
+        return true;
     }
 
     @Override
