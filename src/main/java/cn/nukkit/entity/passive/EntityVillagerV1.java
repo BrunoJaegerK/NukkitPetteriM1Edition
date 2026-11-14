@@ -589,7 +589,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 int localZ = z & 0x0f;
                 for (int y = centerY - 1; y <= centerY + 2; y++) {
                     if (chunk.getBlockId(localX, y - 1, localZ) != BlockID.FARMLAND
-                            || chunk.getBlockId(localX, y, localZ) != Block.AIR) {
+                            || chunk.getBlockId(localX, y, localZ) != Block.AIR
+                            || chunk.getBlockId(localX, y + 1, localZ) != Block.AIR) {
                         continue;
                     }
                     double dx = x + 0.5 - this.x;
