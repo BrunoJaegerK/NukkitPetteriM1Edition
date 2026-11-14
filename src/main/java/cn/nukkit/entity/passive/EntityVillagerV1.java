@@ -10,6 +10,8 @@ import cn.nukkit.inventory.TradeInventory;
 import cn.nukkit.inventory.TradeInventoryRecipe;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.format.FullChunk;
+import cn.nukkit.level.particle.ItemBreakParticle;
+import cn.nukkit.network.protocol.LevelSoundEventPacket;
 import cn.nukkit.math.Vector3;
 import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.nbt.tag.ListTag;
@@ -32,6 +34,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     private final List<TradeInventoryRecipe> recipes = new ArrayList<>();
     private int tradeTier = 0;
     private boolean willing = true;
+    private int foodPoints;
 
     public EntityVillagerV1(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -69,6 +72,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         super.initEntity();
 
         this.inventory = new TradeInventory(this);
+        this.foodPoints = Math.max(0, this.namedTag.getInt("FoodPoints"));
 
         try {
             CompoundTag offers = this.namedTag.getCompound("Offers");
@@ -194,11 +198,38 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
     @Override
     public boolean onInteract(Player player, Item item, Vector3 clickedPos) {
+        if (!this.isBaby() && !this.isInLove() && !this.isInLoveCooldown()) {
+            int foodValue = getBreedingFoodValue(item);
+            if (foodValue > 0) {
+                this.foodPoints = Math.min(12, this.foodPoints + foodValue);
+                this.level.addLevelSoundEvent(this, LevelSoundEventPacket.SOUND_EAT);
+                this.level.addParticle(new ItemBreakParticle(this.add(0, this.getMountedYOffset(), 0), item));
+                if (this.foodPoints >= 12) {
+                    this.foodPoints = 0;
+                    this.setInLove();
+                    this.lastInteract = player;
+                }
+                return true;
+            }
+        }
         if (!recipes.isEmpty()) {
             player.addWindow(this.getInventory());
             return true;
         }
         return false;
+    }
+
+    private int getBreedingFoodValue(Item item) {
+        switch (item.getId()) {
+            case Item.BREAD:
+                return 4;
+            case Item.CARROT:
+            case Item.POTATO:
+            case Item.BEETROOT:
+                return 1;
+            default:
+                return 0;
+        }
     }
 
     public void addTradeRecipe(TradeInventoryRecipe recipe) {
@@ -237,6 +268,12 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     @Override
     public TradeInventory getInventory() {
         return this.inventory;
+    }
+
+    @Override
+    public void saveNBT() {
+        super.saveNBT();
+        this.namedTag.putInt("FoodPoints", this.foodPoints);
     }
 
     @Override
