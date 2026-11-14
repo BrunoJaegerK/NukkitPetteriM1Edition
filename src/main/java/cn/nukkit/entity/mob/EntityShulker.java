@@ -13,6 +13,7 @@ import cn.nukkit.event.player.PlayerTeleportEvent;
 import cn.nukkit.entity.data.IntEntityData;
 import cn.nukkit.entity.projectile.EntityShulkerBullet;
 import cn.nukkit.event.entity.EntityDamageEvent;
+import cn.nukkit.event.entity.EntityDamageByChildEntityEvent;
 import cn.nukkit.event.entity.ProjectileLaunchEvent;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.Sound;
@@ -222,7 +223,18 @@ public class EntityShulker extends EntityWalkingMob {
         }
 
         boolean damaged = super.attack(ev);
-        if (damaged && !ev.isCancelled() && this.getHealth() < this.getMaxHealth() / 2f) {
+        if (damaged && !ev.isCancelled() && !this.isAlive()
+                && ev instanceof EntityDamageByChildEntityEvent
+                && ((EntityDamageByChildEntityEvent) ev).getChild() instanceof EntityShulkerBullet) {
+            // Bedrock Shulkers reproduce when a Shulker Bullet delivers the killing blow.
+            cn.nukkit.nbt.tag.CompoundTag nbt = Entity.getDefaultNBT(this)
+                    .putByte("Color", (byte) this.getDataPropertyInt(DATA_VARIANT));
+            Entity duplicate = Entity.createEntity("Shulker", this.getChunk(), nbt);
+            if (duplicate != null) {
+                duplicate.spawnToAll();
+            }
+        }
+        if (damaged && !ev.isCancelled() && this.isAlive() && this.getHealth() < this.getMaxHealth() / 2f) {
             if (Utils.rand(1, 4) == 1 && this.teleportToSafePosition()) {
                 this.level.addLevelSoundEvent(this, LevelSoundEventPacket.SOUND_TELEPORT);
             }
