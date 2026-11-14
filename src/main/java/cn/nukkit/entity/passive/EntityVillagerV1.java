@@ -11,7 +11,6 @@ import cn.nukkit.entity.mob.EntityWitch;
 import cn.nukkit.entity.mob.EntityDrowned;
 import cn.nukkit.entity.mob.EntityEvoker;
 import cn.nukkit.entity.mob.EntityHusk;
-import cn.nukkit.entity.mob.EntityMob;
 import cn.nukkit.entity.mob.EntityPillager;
 import cn.nukkit.entity.mob.EntityRavager;
 import cn.nukkit.entity.mob.EntityVex;
