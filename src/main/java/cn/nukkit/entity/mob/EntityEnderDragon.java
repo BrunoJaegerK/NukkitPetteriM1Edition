@@ -136,7 +136,7 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
 
     @Override
     public boolean targetOption(EntityCreature creature, double distance) {
-        if (!(creature instanceof Player) || this.server.getDifficulty() == 0) {
+        if (!(creature instanceof Player)) {
             return false;
         }
         Player player = (Player) creature;
@@ -176,6 +176,7 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
             this.motionX = this.motionY = this.motionZ = 0;
             this.target = null;
             this.followTarget = null;
+            this.combatTarget = null;
         }
         return true;
     }
