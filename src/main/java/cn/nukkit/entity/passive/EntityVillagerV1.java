@@ -1,6 +1,7 @@
 package cn.nukkit.entity.passive;
 
 import cn.nukkit.Player;
+import cn.nukkit.block.BlockID;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.entity.item.EntityItem;
@@ -37,6 +38,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     private boolean willing = true;
     private int foodPoints;
     private int foodPickupTicks;
+    private int routineSearchTicks;
+    private Vector3 routineTarget;
 
     public EntityVillagerV1(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -159,7 +162,106 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             return;
         }
 
+        if (!this.isBaby()) {
+            if (this.routineSearchTicks <= 0) {
+                this.updateRoutineTarget();
+            }
+            if (this.routineTarget != null) {
+                this.followTarget = null;
+                this.target = this.routineTarget;
+                this.stayTime = 0;
+                return;
+            }
+        }
+
         super.checkTarget();
+    }
+
+    /**
+     * Lightweight Bedrock-style daily routine. Work, meeting and rest targets are
+     * searched only every 10 seconds and only in already-loaded chunks.
+     */
+    private void updateRoutineTarget() {
+        this.routineSearchTicks = 200;
+        long time = Math.floorMod((long) this.level.getTime(), 24000L);
+        int[] wantedBlocks = null;
+
+        if (time >= 2000 && time < 9000) {
+            switch (this.getProfession()) {
+                case PROFESSION_FARMER:
+                    wantedBlocks = new int[]{BlockID.COMPOSTER};
+                    break;
+                case PROFESSION_LIBRARIAN:
+                    wantedBlocks = new int[]{BlockID.LECTERN};
+                    break;
+                case PROFESSION_PRIEST:
+                    wantedBlocks = new int[]{BlockID.BREWING_STAND_BLOCK};
+                    break;
+                case PROFESSION_BLACKSMITH:
+                    wantedBlocks = new int[]{BlockID.BLAST_FURNACE, BlockID.LIT_BLAST_FURNACE,
+                            BlockID.SMITHING_TABLE, BlockID.GRINDSTONE};
+                    break;
+                case PROFESSION_BUTCHER:
+                    wantedBlocks = new int[]{BlockID.SMOKER, BlockID.LIT_SMOKER};
+                    break;
+                default:
+                    break;
+            }
+        } else if (time >= 9000 && time < 11000) {
+            wantedBlocks = new int[]{461}; // Bell
+        } else if (time >= 13000 || time < 1000) {
+            wantedBlocks = new int[]{BlockID.BED_BLOCK};
+        }
+
+        this.routineTarget = wantedBlocks == null ? null : this.findNearbyRoutineBlock(wantedBlocks);
+    }
+
+    private Vector3 findNearbyRoutineBlock(int[] wantedBlocks) {
+        int centerX = this.getFloorX();
+        int centerY = this.getFloorY();
+        int centerZ = this.getFloorZ();
+        int radius = 12;
+        double nearestDistance = Double.MAX_VALUE;
+        Vector3 nearest = null;
+
+        for (int z = centerZ - radius; z <= centerZ + radius; z++) {
+            for (int x = centerX - radius; x <= centerX + radius; x++) {
+                cn.nukkit.level.format.FullChunk candidate = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+                if (candidate == null || !candidate.isGenerated()) {
+                    continue;
+                }
+
+                int localX = x & 0x0f;
+                int localZ = z & 0x0f;
+                int minY = Math.max(this.level.getMinBlockY(), centerY - 4);
+                int maxY = Math.min(this.level.getMaxBlockY(), centerY + 4);
+                for (int y = minY; y <= maxY; y++) {
+                    int blockId = candidate.getBlockId(localX, y, localZ);
+                    if (!containsBlock(wantedBlocks, blockId)) {
+                        continue;
+                    }
+
+                    double dx = x + 0.5 - this.x;
+                    double dy = y + 1 - this.y;
+                    double dz = z + 0.5 - this.z;
+                    double distance = dx * dx + dy * dy + dz * dz;
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        nearest = new Vector3(x + 0.5, y + 1, z + 0.5);
+                    }
+                }
+            }
+        }
+        return nearest;
+    }
+
+    private boolean containsBlock(int[] blockIds, int blockId) {
+        for (int candidate : blockIds) {
+            if (candidate == blockId) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
