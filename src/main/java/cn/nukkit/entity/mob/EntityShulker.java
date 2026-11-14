@@ -219,7 +219,7 @@ public class EntityShulker extends EntityWalkingMob {
         } else if (this.peekTicks <= 0 && ev.canBeReducedByArmor()) {
             float baseDamage = ev.getDamage(EntityDamageEvent.DamageModifier.BASE);
             float effectiveArmor = Math.min(20f, Math.max(4f, 20f - baseDamage / 2f));
-            ev.setDamage(EntityDamageEvent.DamageModifier.ARMOR, -(baseDamage * effectiveArmor / 25f));
+            ev.setDamage(-(baseDamage * effectiveArmor / 25f), EntityDamageEvent.DamageModifier.ARMOR);
         }
 
         boolean damaged = super.attack(ev);
