@@ -1,6 +1,11 @@
 package cn.nukkit.entity.mob;
 
+import cn.nukkit.Player;
 import cn.nukkit.entity.Entity;
+import cn.nukkit.entity.EntityCreature;
+import cn.nukkit.block.Block;
+import cn.nukkit.level.Location;
+import cn.nukkit.event.player.PlayerTeleportEvent;
 import cn.nukkit.entity.data.IntEntityData;
 import cn.nukkit.entity.projectile.EntityShulkerBullet;
 import cn.nukkit.event.entity.EntityDamageEvent;
@@ -73,6 +78,51 @@ public class EntityShulker extends EntityWalkingMob {
     }
 
     @Override
+    public boolean targetOption(EntityCreature creature, double distance) {
+        if (!(creature instanceof Player)) {
+            return false;
+        }
+        Player player = (Player) creature;
+        return !player.closed && player.spawned && player.isAlive()
+                && (player.isSurvival() || player.isAdventure()) && distance <= 256;
+    }
+
+    /**
+     * Shulkers can relocate when damaged, but must not be moved into solid blocks
+     * or unloaded chunks. Search only already-generated nearby chunks.
+     */
+    private boolean teleportToSafePosition() {
+        for (int attempt = 0; attempt < 16; attempt++) {
+            int tx = this.getFloorX() + Utils.rand(-8, 8);
+            int ty = this.getFloorY() + Utils.rand(-4, 4);
+            int tz = this.getFloorZ() + Utils.rand(-8, 8);
+            if (ty <= this.level.getMinBlockY() || ty + 1 > this.level.getMaxBlockY()) {
+                continue;
+            }
+
+            cn.nukkit.level.format.FullChunk candidate = this.level.getChunk(tx >> 4, tz >> 4, false);
+            if (candidate == null || !candidate.isGenerated()) {
+                continue;
+            }
+
+            int localX = tx & 0x0f;
+            int localZ = tz & 0x0f;
+            int support = candidate.getBlockId(localX, ty - 1, localZ);
+            int feet = candidate.getBlockId(localX, ty, localZ);
+            int head = candidate.getBlockId(localX, ty + 1, localZ);
+            if (!Block.isBlockSolidById(support) || feet != Block.AIR || head != Block.AIR) {
+                continue;
+            }
+
+            Location destination = new Location(tx + 0.5, ty, tz + 0.5, this.yaw, this.pitch, this.level);
+            if (this.teleport(destination, PlayerTeleportEvent.TeleportCause.UNKNOWN)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
     public void attackEntity(Entity player) {
         if (player == null || player.closed || !player.isAlive()) {
             return;
@@ -112,9 +162,7 @@ public class EntityShulker extends EntityWalkingMob {
         boolean damaged = super.attack(ev);
 
         if (damaged && !ev.isCancelled()) {
-            if (Utils.rand(1, 10) == 1) {
-                this.level.addLevelSoundEvent(this, LevelSoundEventPacket.SOUND_TELEPORT);
-                this.move(Utils.rand(-10, 10), 0, Utils.rand(-10, 10));
+            if (Utils.rand(1, 10) == 1 && this.teleportToSafePosition()) {
                 this.level.addLevelSoundEvent(this, LevelSoundEventPacket.SOUND_TELEPORT);
             }
         }
