@@ -617,7 +617,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
         if (chunk == null || !chunk.isGenerated()
                 || chunk.getBlockId(x & 0x0f, y - 1, z & 0x0f) != BlockID.FARMLAND
-                || chunk.getBlockId(x & 0x0f, y, z & 0x0f) != Block.AIR) {
+                || chunk.getBlockId(x & 0x0f, y, z & 0x0f) != Block.AIR
+                || chunk.getBlockId(x & 0x0f, y + 1, z & 0x0f) != Block.AIR) {
             this.farmTarget = null;
             this.farmPlantingTarget = false;
             return;
