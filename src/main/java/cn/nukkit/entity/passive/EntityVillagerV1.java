@@ -102,7 +102,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
     @Override
     public boolean canTarget(Entity entity) {
-        if (this.isBaby() && entity instanceof EntityVillagerV1 && !entity.isBaby()) {
+        if (this.isBaby() && entity instanceof EntityVillagerV1 && !((EntityVillagerV1) entity).isBaby()) {
             return entity.isAlive() && !entity.closed && entity.canBeFollowed();
         }
         return super.canTarget(entity);
@@ -110,7 +110,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
     @Override
     public boolean targetOption(EntityCreature creature, double distance) {
-        if (this.isBaby() && creature instanceof EntityVillagerV1 && !creature.isBaby()) {
+        if (this.isBaby() && creature instanceof EntityVillagerV1 && !((EntityVillagerV1) creature).isBaby()) {
             return distance <= 64;
         }
         return super.targetOption(creature, distance);
