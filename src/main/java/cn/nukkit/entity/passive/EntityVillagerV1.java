@@ -7,7 +7,16 @@ import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.entity.item.EntityItem;
 import cn.nukkit.entity.mob.EntityWitch;
+import cn.nukkit.entity.mob.EntityDrowned;
+import cn.nukkit.entity.mob.EntityEvoker;
+import cn.nukkit.entity.mob.EntityHusk;
 import cn.nukkit.entity.mob.EntityMob;
+import cn.nukkit.entity.mob.EntityPillager;
+import cn.nukkit.entity.mob.EntityRavager;
+import cn.nukkit.entity.mob.EntityVex;
+import cn.nukkit.entity.mob.EntityVindicator;
+import cn.nukkit.entity.mob.EntityZombie;
+import cn.nukkit.entity.mob.EntityZombieVillager;
 import cn.nukkit.event.entity.CreatureSpawnEvent;
 import cn.nukkit.entity.route.WalkerRouteFinder;
 import cn.nukkit.inventory.InventoryHolder;
@@ -137,9 +146,9 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         }
 
         Entity threat = null;
-        double nearestDistance = 100.0; // 10 blocks squared
-        for (Entity entity : this.level.getNearbyEntities(this.boundingBox.grow(10, 6, 10), this)) {
-            if (entity == this || entity.closed || !entity.isAlive() || !(entity instanceof EntityMob)) {
+        double nearestDistance = 64.0; // 8 blocks squared
+        for (Entity entity : this.level.getNearbyEntities(this.boundingBox.grow(8, 6, 8), this)) {
+            if (entity == this || entity.closed || !entity.isAlive() || !this.isVillagerThreat(entity)) {
                 continue;
             }
             double distance = this.distanceSquared(entity);
@@ -164,6 +173,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             this.stayTime = 0;
             this.moveTime = 30;
             this.doPanic(true);
+            this.moveMultiplier = 1.2f;
             return;
         }
 
@@ -180,6 +190,14 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         }
 
         super.checkTarget();
+    }
+
+    private boolean isVillagerThreat(Entity entity) {
+        return entity instanceof EntityZombie || entity instanceof EntityZombieVillager
+                || entity instanceof EntityHusk || entity instanceof EntityDrowned
+                || entity instanceof EntityPillager || entity instanceof EntityVindicator
+                || entity instanceof EntityEvoker || entity instanceof EntityRavager
+                || entity instanceof EntityVex;
     }
 
     /**
