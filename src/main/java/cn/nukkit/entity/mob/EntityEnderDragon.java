@@ -46,12 +46,12 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
 
     @Override
     public float getWidth() {
-        return 16f;
+        return 13f;
     }
 
     @Override
     public float getHeight() {
-        return 8f;
+        return 4f;
     }
 
     @Override
@@ -84,6 +84,27 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
         this.namedTag.putDouble("DragonHomeX", this.homeX);
         this.namedTag.putDouble("DragonHomeY", this.homeY);
         this.namedTag.putDouble("DragonHomeZ", this.homeZ);
+    }
+
+    /**
+     * The Bedrock Ender Dragon has no block collision. Its flight controller must
+     * not be stopped by terrain or pillars, unlike ordinary flying mobs.
+     */
+    @Override
+    public boolean move(double dx, double dy, double dz) {
+        if (dy < -10 || dy > 10 || (dx == 0 && dy == 0 && dz == 0)) {
+            return false;
+        }
+
+        this.blocksAround = null;
+        double movX = dx * this.moveMultiplier;
+        double movY = dy;
+        double movZ = dz * this.moveMultiplier;
+        this.setComponents(this.x + dx, this.y + dy, this.z + dz);
+        this.checkChunks();
+        this.checkGroundState(movX, movY, movZ, dx, dy, dz);
+        this.updateFallState(this.onGround);
+        return true;
     }
 
     @Override
