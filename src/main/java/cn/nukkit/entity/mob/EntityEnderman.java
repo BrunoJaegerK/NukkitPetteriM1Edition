@@ -253,7 +253,7 @@ public class EntityEnderman extends EntityWalkingMob {
         }
         Player player = (Player) creature;
         return !player.closed && player.spawned && player.isAlive()
-                && (player.isSurvival() || player.isAdventure()) && distance <= 1024; // 32 blocks
+                && (player.isSurvival() || player.isAdventure()) && distance <= 4096; // 64 blocks
     }
 
     public void stareToAngry() {
