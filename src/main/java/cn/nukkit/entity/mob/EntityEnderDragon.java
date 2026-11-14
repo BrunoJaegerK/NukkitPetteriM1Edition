@@ -268,15 +268,15 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
         } else if (this.attackDelay > 20 && distance <= 64) {
             this.attackDelay = 0;
             HashMap<EntityDamageEvent.DamageModifier, Float> damage = new HashMap<>();
-            damage.put(EntityDamageEvent.DamageModifier.BASE, (float) this.getDamage());
+            float baseDamage = (float) this.getDamage();
+            damage.put(EntityDamageEvent.DamageModifier.BASE, baseDamage);
             if (player instanceof Player) {
                 float armorPoints = 0;
                 for (Item armor : ((Player) player).getInventory().getArmorContents()) {
                     armorPoints += this.getArmorPoints(armor.getId());
                 }
                 damage.put(EntityDamageEvent.DamageModifier.ARMOR,
-                        (float) (damage.get(EntityDamageEvent.DamageModifier.BASE)
-                                - Math.floor(this.getDamage() * armorPoints * 0.04)));
+                        (float) -Math.floor(baseDamage * armorPoints * 0.04));
             }
             player.attack(new EntityDamageByEntityEvent(this, player,
                     EntityDamageEvent.DamageCause.ENTITY_ATTACK, damage));
