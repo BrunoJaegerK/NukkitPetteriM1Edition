@@ -20,6 +20,7 @@ import cn.nukkit.entity.mob.EntityZombie;
 import cn.nukkit.entity.mob.EntityZombieVillager;
 import cn.nukkit.event.entity.CreatureSpawnEvent;
 import cn.nukkit.event.entity.VillagerHarvestEvent;
+import cn.nukkit.event.entity.VillagerPlantEvent;
 import cn.nukkit.entity.route.WalkerRouteFinder;
 import cn.nukkit.inventory.InventoryHolder;
 import cn.nukkit.inventory.TradeInventory;
@@ -55,6 +56,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     private int routineSearchTicks;
     private Vector3 routineTarget;
     private Vector3 farmTarget;
+    private boolean farmPlantingTarget;
     private int farmSearchTicks;
     private int wheatSeeds;
     private int carrotSeeds;
@@ -131,6 +133,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         this.routineTarget = null;
         this.farmSearchTicks = 0;
         this.farmTarget = null;
+        this.farmPlantingTarget = false;
     }
 
     @Override
@@ -195,7 +198,11 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         if (!this.isBaby() && this.getProfession() == PROFESSION_FARMER
                 && this.isFarmerWorkTime() && this.farmTarget != null) {
             if (this.distanceSquared(this.farmTarget) <= 2.25) {
-                this.harvestFarmTarget();
+                if (this.farmPlantingTarget) {
+                    this.plantFarmTarget();
+                } else {
+                    this.harvestFarmTarget();
+                }
                 return;
             }
             this.followTarget = null;
@@ -500,9 +507,15 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 && this.isFarmerWorkTime();
         if (canFarm && this.farmSearchTicks <= 0) {
             this.farmTarget = this.findNearestMatureCrop();
+            this.farmPlantingTarget = false;
+            if (this.farmTarget == null) {
+                this.farmTarget = this.findNearestPlantableFarmland();
+                this.farmPlantingTarget = this.farmTarget != null;
+            }
             this.farmSearchTicks = 20;
         } else if (!canFarm) {
             this.farmTarget = null;
+            this.farmPlantingTarget = false;
             this.farmSearchTicks = 0;
         }
         if (this.getServer().getMobAiEnabled() && this.level.getGameRules().getBoolean(GameRule.MOB_GRIEFING)
@@ -554,6 +567,105 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             }
         }
         return nearest;
+    }
+
+    private Vector3 findNearestPlantableFarmland() {
+        if (this.wheatSeeds + this.carrotSeeds + this.potatoSeeds + this.beetrootSeeds <= 0) {
+            return null;
+        }
+        int centerX = this.getFloorX();
+        int centerY = this.getFloorY();
+        int centerZ = this.getFloorZ();
+        double nearestDistance = 64.0;
+        Vector3 nearest = null;
+
+        for (int z = centerZ - 8; z <= centerZ + 8; z++) {
+            for (int x = centerX - 8; x <= centerX + 8; x++) {
+                FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+                if (chunk == null || !chunk.isGenerated()) {
+                    continue;
+                }
+                int localX = x & 0x0f;
+                int localZ = z & 0x0f;
+                for (int y = centerY - 1; y <= centerY + 2; y++) {
+                    if (chunk.getBlockId(localX, y - 1, localZ) != BlockID.FARMLAND
+                            || chunk.getBlockId(localX, y, localZ) != Block.AIR) {
+                        continue;
+                    }
+                    double dx = x + 0.5 - this.x;
+                    double dy = y - this.y;
+                    double dz = z + 0.5 - this.z;
+                    double distance = dx * dx + dy * dy + dz * dz;
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        nearest = new Vector3(x + 0.5, y, z + 0.5);
+                    }
+                }
+            }
+        }
+        return nearest;
+    }
+
+    private void plantFarmTarget() {
+        if (this.farmTarget == null) {
+            return;
+        }
+        int x = this.farmTarget.getFloorX();
+        int y = this.farmTarget.getFloorY();
+        int z = this.farmTarget.getFloorZ();
+        FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+        if (chunk == null || !chunk.isGenerated()
+                || chunk.getBlockId(x & 0x0f, y - 1, z & 0x0f) != BlockID.FARMLAND
+                || chunk.getBlockId(x & 0x0f, y, z & 0x0f) != Block.AIR) {
+            this.farmTarget = null;
+            this.farmPlantingTarget = false;
+            return;
+        }
+
+        int cropId;
+        if (this.wheatSeeds > 0) {
+            cropId = BlockID.WHEAT_BLOCK;
+        } else if (this.carrotSeeds > 0) {
+            cropId = BlockID.CARROT_BLOCK;
+        } else if (this.potatoSeeds > 0) {
+            cropId = BlockID.POTATO_BLOCK;
+        } else if (this.beetrootSeeds > 0) {
+            cropId = BlockID.BEETROOT_BLOCK;
+        } else {
+            this.farmTarget = null;
+            this.farmPlantingTarget = false;
+            return;
+        }
+
+        Location position = new Location(x, y, z, this.level);
+        Block crop = Block.get(cropId, 0, position);
+        VillagerPlantEvent event = new VillagerPlantEvent(this, crop);
+        this.getServer().getPluginManager().callEvent(event);
+        if (!event.isCancelled() && this.level.setBlock(position, crop, true, true)) {
+            switch (cropId) {
+                case BlockID.WHEAT_BLOCK:
+                    this.wheatSeeds--;
+                    break;
+                case BlockID.CARROT_BLOCK:
+                    this.carrotSeeds--;
+                    break;
+                case BlockID.POTATO_BLOCK:
+                    this.potatoSeeds--;
+                    break;
+                case BlockID.BEETROOT_BLOCK:
+                    this.beetrootSeeds--;
+                    break;
+                default:
+                    break;
+            }
+            this.namedTag.putInt("WheatSeeds", this.wheatSeeds);
+            this.namedTag.putInt("CarrotSeeds", this.carrotSeeds);
+            this.namedTag.putInt("PotatoSeeds", this.potatoSeeds);
+            this.namedTag.putInt("BeetrootSeeds", this.beetrootSeeds);
+        }
+        this.farmTarget = null;
+        this.farmPlantingTarget = false;
+        this.farmSearchTicks = 0;
     }
 
     private void harvestFarmTarget() {
