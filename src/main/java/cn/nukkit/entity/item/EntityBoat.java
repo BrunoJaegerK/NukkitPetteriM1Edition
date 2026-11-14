@@ -22,7 +22,6 @@ import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.network.protocol.AnimatePacket;
 import cn.nukkit.network.protocol.ProtocolInfo;
 import cn.nukkit.network.protocol.SetEntityLinkPacket;
-import cn.nukkit.network.protocol.MovePlayerPacket;
 
 import java.util.ArrayList;
 
@@ -319,44 +318,77 @@ public class EntityBoat extends EntityVehicle implements EntityControllable {
 
     @Override
     protected void updatePassengerPosition(Entity passenger) {
+        // This method is also called by Entity.dismountEntity() after it clears
+        // passenger.riding. Do not perform an exit teleport here: the dismount
+        // operation must finish first so the player's client stops predicting
+        // movement as a passenger.
         if (passenger.riding == this && this.passengers.contains(passenger)) {
             updatePassengers();
-            return;
         }
+    }
 
-        // Entity.dismountEntity() calls this after clearing the riding link.
-        // Move the former passenger beside the boat and explicitly correct the
-        // Bedrock client position so it cannot keep snapping to the old seat.
+    /**
+     * Finds a collision-free position around the boat for a dismounted entity.
+     * The player may still fall into water when there is no nearby solid shore,
+     * but must never be placed inside a solid block.
+     */
+    private Vector3 findDismountPosition(Entity passenger) {
         double yawRadians = Math.toRadians(this.yaw);
-        double sideX = -Math.sin(yawRadians);
-        double sideZ = Math.cos(yawRadians);
+        double forwardX = -Math.sin(yawRadians);
+        double forwardZ = Math.cos(yawRadians);
+        double sideX = Math.cos(yawRadians);
+        double sideZ = Math.sin(yawRadians);
+        double distance = this.getWidth() / 2.0 + passenger.getWidth() / 2.0 + 0.15;
         double exitY = passenger.y;
 
-        Vector3 exitPosition = new Vector3(this.x + sideX * 1.2, exitY, this.z + sideZ * 1.2);
-        passenger.setPosition(exitPosition);
+        double[][] offsets = {
+                {sideX * distance, sideZ * distance},
+                {-sideX * distance, -sideZ * distance},
+                {forwardX * distance, forwardZ * distance},
+                {-forwardX * distance, -forwardZ * distance}
+        };
 
-        // If this side is obstructed, use the other side of the boat.
-        if (this.level.getCollisionBlocks(passenger.getBoundingBox()).length > 0) {
-            exitPosition = new Vector3(this.x - sideX * 1.2, exitY, this.z - sideZ * 1.2);
-            passenger.setPosition(exitPosition);
+        for (double[] offset : offsets) {
+            Vector3 candidate = new Vector3(this.x + offset[0], exitY, this.z + offset[1]);
+            passenger.setPosition(candidate);
+            if (this.level.getCollisionBlocks(passenger.getBoundingBox()).length == 0) {
+                return candidate;
+            }
         }
 
-        if (passenger instanceof Player) {
-            Player player = (Player) passenger;
-            player.sendPosition(exitPosition, player.yaw, player.pitch, MovePlayerPacket.MODE_RESET);
-        }
-        passenger.updateMovement();
+        // If every horizontal exit is obstructed, place the entity above the
+        // boat rather than inside a wall. Water remains a valid fallback.
+        Vector3 fallback = new Vector3(this.x, this.y + this.getHeight() + 0.1, this.z);
+        passenger.setPosition(fallback);
+        return fallback;
     }
 
     @Override
     public boolean dismountEntity(Entity entity, boolean sendLinks) {
+        boolean wasPassenger = this.passengers.contains(entity);
         boolean r = super.dismountEntity(entity, sendLinks);
 
-        if (r) {
+        if (r && wasPassenger) {
+            // Entity.dismountEntity() has now removed the riding link. Only
+            // after that point is it safe to synchronize the exit position.
             updatePassengers();
+            Vector3 exitPosition = findDismountPosition(entity);
+
             if (entity instanceof Player) {
+                Player player = (Player) entity;
+                Location exitLocation = new Location(
+                        exitPosition.x, exitPosition.y, exitPosition.z,
+                        player.yaw, player.pitch, this.level
+                );
+
+                // Player.teleport establishes forceMovement/teleportPosition
+                // and sends a TELEPORT packet. A plain sendPosition() does not
+                // reject stale in-vehicle movement packets still in flight.
+                player.teleport(exitLocation, null);
                 entity.setDataPropertyAndSendOnlyToSelf(new ByteEntityData(DATA_RIDER_ROTATION_LOCKED, 0));
             } else {
+                entity.setPosition(exitPosition);
+                entity.updateMovement();
                 entity.setDataProperty(new ByteEntityData(DATA_RIDER_ROTATION_LOCKED, 0), true);
             }
         }
@@ -525,28 +557,19 @@ public class EntityBoat extends EntityVehicle implements EntityControllable {
         if (up) acceleration += 0.04F;
         if (down) acceleration -= 0.005F;
 
-        // Keep forward momentum aligned with the boat's new heading after a
-        // turn. Otherwise the old velocity continues in the previous
-        // direction and can feel like the boat briefly moves backwards.
+        // Use the same horizontal yaw convention as Entity.getDirectionPlane():
+        // yaw 0 points along +Z, and positive yaw rotates toward -X.
+        // Preserve existing momentum; the boat's drag naturally dissipates
+        // lateral velocity while acceleration follows the current heading.
         double yawRadians = Math.toRadians(getYaw());
-        double directionX = Math.cos(yawRadians);
-        double directionZ = Math.sin(yawRadians);
+        double directionX = -Math.sin(yawRadians);
+        double directionZ = Math.cos(yawRadians);
         Vector3 motion = getMotion();
-        double motionX = motion.x;
-        double motionZ = motion.z;
-
-        if (up) {
-            double horizontalSpeed = Math.sqrt(motionX * motionX + motionZ * motionZ);
-            if (horizontalSpeed > 0.0001) {
-                motionX = directionX * horizontalSpeed;
-                motionZ = directionZ * horizontalSpeed;
-            }
-        }
 
         setMotion(new Vector3(
-                motionX + directionX * acceleration,
+                motion.x + directionX * acceleration,
                 motion.y,
-                motionZ + directionZ * acceleration
+                motion.z + directionZ * acceleration
         ));
 
         if (left) {
