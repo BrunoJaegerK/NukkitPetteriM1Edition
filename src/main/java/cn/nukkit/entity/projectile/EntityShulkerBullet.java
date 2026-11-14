@@ -56,6 +56,13 @@ public class EntityShulkerBullet extends EntityProjectile {
 
     @Override
     protected double getBaseDamage() {
+        int difficulty = this.server.getDifficulty();
+        if (difficulty == 1) {
+            return 3;
+        }
+        if (difficulty >= 3) {
+            return 6;
+        }
         return 4;
     }
 
