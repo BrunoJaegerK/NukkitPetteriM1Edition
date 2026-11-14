@@ -120,7 +120,8 @@ public class EntityEnderman extends EntityWalkingMob {
             return false;
         }
 
-        if (super.attack(ev) && !ev.isCancelled()) {
+        boolean damaged = super.attack(ev);
+        if (damaged && !ev.isCancelled()) {
             if (ev.getCause() == EntityDamageEvent.DamageCause.ENTITY_ATTACK) {
                 setAngry(2400);
             }
@@ -129,7 +130,7 @@ public class EntityEnderman extends EntityWalkingMob {
                 this.teleport();
             }
         }
-        return true;
+        return damaged;
     }
 
     @Override
