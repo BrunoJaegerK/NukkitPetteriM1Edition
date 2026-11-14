@@ -139,6 +139,24 @@ public class EntityShulker extends EntityWalkingMob {
         return false;
     }
 
+    private boolean hasAdjacentSupport(int x, int y, int z) {
+        int[][] offsets = {
+                {0, -1, 0}, {0, 1, 0}, {0, 0, -1},
+                {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}
+        };
+        for (int[] offset : offsets) {
+            int sx = x + offset[0];
+            int sy = y + offset[1];
+            int sz = z + offset[2];
+            cn.nukkit.level.format.FullChunk chunk = this.level.getChunkIfLoaded(sx >> 4, sz >> 4);
+            if (chunk != null && chunk.isGenerated()
+                    && Block.isBlockSolidById(chunk.getBlockId(sx & 0x0f, sy, sz & 0x0f))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Shulkers can relocate when damaged, but must not be moved into solid blocks
      * or unloaded chunks. Search only already-generated nearby chunks.
@@ -159,10 +177,9 @@ public class EntityShulker extends EntityWalkingMob {
 
             int localX = tx & 0x0f;
             int localZ = tz & 0x0f;
-            int support = candidate.getBlockId(localX, ty - 1, localZ);
             int feet = candidate.getBlockId(localX, ty, localZ);
             int head = candidate.getBlockId(localX, ty + 1, localZ);
-            if (!Block.isBlockSolidById(support) || feet != Block.AIR || head != Block.AIR) {
+            if (feet != Block.AIR || head != Block.AIR || !this.hasAdjacentSupport(tx, ty, tz)) {
                 continue;
             }
 
