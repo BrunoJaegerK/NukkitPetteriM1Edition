@@ -3,6 +3,7 @@ package cn.nukkit.entity.passive;
 import cn.nukkit.Player;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.mob.EntityWitch;
+import cn.nukkit.entity.mob.EntityMob;
 import cn.nukkit.event.entity.CreatureSpawnEvent;
 import cn.nukkit.inventory.InventoryHolder;
 import cn.nukkit.inventory.TradeInventory;
@@ -92,6 +93,51 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
     public void setProfession(int profession) {
         this.namedTag.putInt("Profession", profession);
+    }
+
+    /**
+     * Villagers flee nearby hostile mobs instead of continuing their normal wandering route.
+     * Kept local to villagers so the shared movement AI used by other entities is untouched.
+     */
+    @Override
+    protected void checkTarget() {
+        if (this.isKnockback() || this.isImmobile()) {
+            super.checkTarget();
+            return;
+        }
+
+        Entity threat = null;
+        double nearestDistance = 100.0; // 10 blocks squared
+        for (Entity entity : this.level.getEntitiesList()) {
+            if (entity == this || entity.closed || !entity.isAlive() || !(entity instanceof EntityMob)) {
+                continue;
+            }
+            double distance = this.distanceSquared(entity);
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                threat = entity;
+            }
+        }
+
+        if (threat != null) {
+            double dx = this.x - threat.x;
+            double dz = this.z - threat.z;
+            double length = Math.sqrt(dx * dx + dz * dz);
+            if (length < 0.001) {
+                dx = (this.getId() & 1) == 0 ? 1 : -1;
+                dz = 0;
+                length = 1;
+            }
+            this.followTarget = null;
+            this.target = new Vector3(this.x + (dx / length) * 12,
+                    this.y, this.z + (dz / length) * 12);
+            this.stayTime = 0;
+            this.moveTime = 30;
+            this.doPanic(true);
+            return;
+        }
+
+        super.checkTarget();
     }
 
     @Override
