@@ -28,6 +28,8 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
     private double homeY;
     private double homeZ;
     private Vector3 orbitTarget;
+    private Player combatTarget;
+    private int flightPhaseTicks;
 
     public EntityEnderDragon(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -85,20 +87,50 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
 
     @Override
     protected void checkTarget() {
+        // Let the shared target selector choose valid players, but keep the dragon's
+        // movement target separate so it circles/strafe-flies instead of walking
+        // directly into the player like an ordinary flying mob.
         super.checkTarget();
-        if (this.target instanceof Entity) {
-            this.orbitTarget = null;
-            return;
+        if (this.target instanceof Player) {
+            this.combatTarget = (Player) this.target;
         }
 
-        if (this.orbitTarget == null || this.distanceSquared(this.orbitTarget) <= 144) {
+        if (this.combatTarget != null && (this.combatTarget.closed || !this.combatTarget.isAlive()
+                || !this.combatTarget.spawned || !(this.combatTarget.isSurvival() || this.combatTarget.isAdventure())
+                || this.distanceSquared(this.combatTarget) > 4096)) {
+            this.combatTarget = null;
+        }
+
+        if (this.orbitTarget == null || this.flightPhaseTicks <= 0 || this.distanceSquared(this.orbitTarget) <= 144) {
             double angle = Utils.rand(0, 359) * Math.PI / 180.0;
-            double radius = Utils.rand(24, 40);
-            this.orbitTarget = new Vector3(this.homeX + Math.cos(angle) * radius,
-                    this.homeY + Utils.rand(-6, 10), this.homeZ + Math.sin(angle) * radius);
-            this.moveTime = 120;
+            double radius;
+            double centerX;
+            double centerY;
+            double centerZ;
+
+            if (this.combatTarget != null) {
+                // Strafing pass: circle the target at a changing radius and height.
+                radius = Utils.rand(18, 30);
+                centerX = this.combatTarget.x;
+                centerY = this.combatTarget.y + Utils.rand(8, 18);
+                centerZ = this.combatTarget.z;
+                this.flightPhaseTicks = Utils.rand(60, 100);
+            } else {
+                // No player in range: patrol around the dragon's saved home point.
+                radius = Utils.rand(24, 40);
+                centerX = this.homeX;
+                centerY = this.homeY + Utils.rand(-6, 10);
+                centerZ = this.homeZ;
+                this.flightPhaseTicks = Utils.rand(80, 140);
+            }
+
+            this.orbitTarget = new Vector3(centerX + Math.cos(angle) * radius,
+                    centerY, centerZ + Math.sin(angle) * radius);
+            this.moveTime = this.flightPhaseTicks;
             this.stayTime = 0;
         }
+
+        this.followTarget = null;
         this.target = this.orbitTarget;
     }
 
