@@ -3,6 +3,8 @@ package cn.nukkit.entity.passive;
 import cn.nukkit.Player;
 import cn.nukkit.block.Block;
 import cn.nukkit.block.BlockCrops;
+import cn.nukkit.block.BlockCopperDoor;
+import cn.nukkit.block.BlockDoor;
 import cn.nukkit.block.BlockID;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
@@ -20,6 +22,7 @@ import cn.nukkit.entity.mob.EntityZombieVillager;
 import cn.nukkit.event.entity.CreatureSpawnEvent;
 import cn.nukkit.event.entity.VillagerHarvestEvent;
 import cn.nukkit.event.entity.VillagerPlantEvent;
+import cn.nukkit.event.entity.VillagerDoorOpenEvent;
 import cn.nukkit.entity.route.WalkerRouteFinder;
 import cn.nukkit.inventory.InventoryHolder;
 import cn.nukkit.inventory.TradeInventory;
@@ -208,6 +211,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             this.target = this.farmTarget;
             this.stayTime = 0;
             this.moveTime = 40;
+            this.openDoorToward(this.farmTarget);
             return;
         }
 
@@ -219,11 +223,59 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 this.followTarget = null;
                 this.target = this.routineTarget;
                 this.stayTime = 0;
+                this.openDoorToward(this.routineTarget);
                 return;
             }
         }
 
         super.checkTarget();
+        Vector3 destination = this.followTarget != null ? this.followTarget : this.target;
+        this.openDoorToward(destination);
+    }
+
+    private void openDoorToward(Vector3 destination) {
+        if (destination == null) {
+            return;
+        }
+        double dx = destination.x - this.x;
+        double dz = destination.z - this.z;
+        if (Math.abs(dx) + Math.abs(dz) < 0.01) {
+            return;
+        }
+
+        int doorX = this.getFloorX();
+        int doorZ = this.getFloorZ();
+        if (Math.abs(dx) > Math.abs(dz)) {
+            doorX += dx > 0 ? 1 : -1;
+        } else {
+            doorZ += dz > 0 ? 1 : -1;
+        }
+
+        double doorDistanceX = doorX + 0.5 - this.x;
+        double doorDistanceZ = doorZ + 0.5 - this.z;
+        if (doorDistanceX * doorDistanceX + doorDistanceZ * doorDistanceZ > 2.25) {
+            return;
+        }
+
+        FullChunk chunk = this.level.getChunkIfLoaded(doorX >> 4, doorZ >> 4);
+        if (chunk == null || !chunk.isGenerated()) {
+            return;
+        }
+        Block block = this.level.getBlock(chunk, doorX, this.getFloorY(), doorZ, false);
+        if (!(block instanceof BlockDoor) || block instanceof BlockCopperDoor
+                || block.getId() == BlockID.IRON_DOOR_BLOCK) {
+            return;
+        }
+
+        BlockDoor door = (BlockDoor) block;
+        if (door.isOpen()) {
+            return;
+        }
+        VillagerDoorOpenEvent event = new VillagerDoorOpenEvent(this, door);
+        this.getServer().getPluginManager().callEvent(event);
+        if (!event.isCancelled()) {
+            door.toggle(null);
+        }
     }
 
     private boolean isVillagerThreat(Entity entity) {
