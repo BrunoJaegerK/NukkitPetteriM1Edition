@@ -92,13 +92,20 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
         // directly into the player like an ordinary flying mob.
         super.checkTarget();
         if (this.target instanceof Player) {
-            this.combatTarget = (Player) this.target;
+            Player selectedTarget = (Player) this.target;
+            if (this.combatTarget != selectedTarget) {
+                this.combatTarget = selectedTarget;
+                this.orbitTarget = null;
+                this.flightPhaseTicks = 0;
+            }
         }
 
         if (this.combatTarget != null && (this.combatTarget.closed || !this.combatTarget.isAlive()
                 || !this.combatTarget.spawned || !(this.combatTarget.isSurvival() || this.combatTarget.isAdventure())
                 || this.distanceSquared(this.combatTarget) > 4096)) {
             this.combatTarget = null;
+            this.orbitTarget = null;
+            this.flightPhaseTicks = 0;
         }
 
         if (this.orbitTarget == null || this.flightPhaseTicks <= 0 || this.distanceSquared(this.orbitTarget) <= 144) {
