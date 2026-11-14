@@ -268,6 +268,7 @@ public class EntityShulker extends EntityWalkingMob {
         this.motionX = this.motionY = this.motionZ = 0;
         this.target = null;
         this.followTarget = null;
+        this.updateMovement();
         return true;
     }
 
