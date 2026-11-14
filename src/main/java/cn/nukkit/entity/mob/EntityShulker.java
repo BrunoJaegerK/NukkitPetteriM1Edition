@@ -45,7 +45,7 @@ public class EntityShulker extends EntityWalkingMob {
 
     @Override
     public float getHeight() {
-        return 1f;
+        return this.peekTicks > 0 ? 2f : 1f;
     }
 
     @Override
@@ -78,6 +78,7 @@ public class EntityShulker extends EntityWalkingMob {
             this.peekTicks = Math.max(0, this.peekTicks - Math.max(1, tickDiff));
             if (this.peekTicks == 0) {
                 this.setDataProperty(new IntEntityData(DATA_SHULKER_PEEK_ID, 0));
+                this.recalculateBoundingBox();
             }
         }
         this.attachmentCheckTicks += Math.max(0, tickDiff);
@@ -203,6 +204,7 @@ public class EntityShulker extends EntityWalkingMob {
                 shot.spawnToAll();
                 this.peekTicks = 20;
                 this.setDataProperty(new IntEntityData(DATA_SHULKER_PEEK_ID, 100));
+                this.recalculateBoundingBox();
                 this.level.addSound(this, Sound.MOB_SHULKER_SHOOT);
             }
         }
