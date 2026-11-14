@@ -104,6 +104,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
     public void setProfession(int profession) {
         this.namedTag.putInt("Profession", profession);
+        this.routineSearchTicks = 0;
+        this.routineTarget = null;
     }
 
     @Override
