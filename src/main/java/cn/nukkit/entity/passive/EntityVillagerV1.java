@@ -11,6 +11,7 @@ import cn.nukkit.inventory.InventoryHolder;
 import cn.nukkit.inventory.TradeInventory;
 import cn.nukkit.inventory.TradeInventoryRecipe;
 import cn.nukkit.item.Item;
+import cn.nukkit.level.GameRule;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.math.Vector3;
 import cn.nukkit.nbt.tag.CompoundTag;
@@ -129,7 +130,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
         Entity threat = null;
         double nearestDistance = 100.0; // 10 blocks squared
-        for (Entity entity : this.level.getEntitiesList()) {
+        for (Entity entity : this.level.getNearbyEntities(this.boundingBox.grow(10, 6, 10), this)) {
             if (entity == this || entity.closed || !entity.isAlive() || !(entity instanceof EntityMob)) {
                 continue;
             }
@@ -276,7 +277,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     @Override
     public boolean entityBaseTick(int tickDiff) {
         boolean updated = super.entityBaseTick(tickDiff);
-        if (this.getServer().getMobAiEnabled() && this.isAlive() && !this.isBaby() && !this.isInLove() && !this.isInLoveCooldown()) {
+        if (this.getServer().getMobAiEnabled() && this.level.getGameRules().getBoolean(GameRule.MOB_GRIEFING)
+                && this.isAlive() && !this.isBaby() && !this.isInLove() && !this.isInLoveCooldown()) {
             this.foodPickupTicks += Math.max(0, tickDiff);
             if (this.foodPickupTicks >= 20) {
                 this.foodPickupTicks %= 20;
