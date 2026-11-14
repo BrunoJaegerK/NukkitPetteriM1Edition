@@ -2,6 +2,7 @@ package cn.nukkit.entity.passive;
 
 import cn.nukkit.Player;
 import cn.nukkit.block.Block;
+import cn.nukkit.block.BlockCrops;
 import cn.nukkit.block.BlockID;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
@@ -18,12 +19,14 @@ import cn.nukkit.entity.mob.EntityVindicator;
 import cn.nukkit.entity.mob.EntityZombie;
 import cn.nukkit.entity.mob.EntityZombieVillager;
 import cn.nukkit.event.entity.CreatureSpawnEvent;
+import cn.nukkit.event.entity.VillagerHarvestEvent;
 import cn.nukkit.entity.route.WalkerRouteFinder;
 import cn.nukkit.inventory.InventoryHolder;
 import cn.nukkit.inventory.TradeInventory;
 import cn.nukkit.inventory.TradeInventoryRecipe;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.GameRule;
+import cn.nukkit.level.Location;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.math.Vector3;
 import cn.nukkit.nbt.tag.CompoundTag;
@@ -51,6 +54,12 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     private int foodPickupTicks;
     private int routineSearchTicks;
     private Vector3 routineTarget;
+    private Vector3 farmTarget;
+    private int farmSearchTicks;
+    private int wheatSeeds;
+    private int carrotSeeds;
+    private int potatoSeeds;
+    private int beetrootSeeds;
 
     public EntityVillagerV1(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -85,11 +94,15 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
     @Override
     public void initEntity() {
-        this.setMaxHealth(10);
+        this.setMaxHealth(20);
         super.initEntity();
 
         this.inventory = new TradeInventory(this);
         this.foodPoints = Math.min(12, Math.max(0, this.namedTag.getInt("FoodPoints")));
+        this.wheatSeeds = Math.max(0, this.namedTag.getInt("WheatSeeds"));
+        this.carrotSeeds = Math.max(0, this.namedTag.getInt("CarrotSeeds"));
+        this.potatoSeeds = Math.max(0, this.namedTag.getInt("PotatoSeeds"));
+        this.beetrootSeeds = Math.max(0, this.namedTag.getInt("BeetrootSeeds"));
 
         try {
             CompoundTag offers = this.namedTag.getCompound("Offers");
@@ -116,6 +129,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         this.namedTag.putInt("Profession", profession);
         this.routineSearchTicks = 0;
         this.routineTarget = null;
+        this.farmSearchTicks = 0;
+        this.farmTarget = null;
     }
 
     @Override
