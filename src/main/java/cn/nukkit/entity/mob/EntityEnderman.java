@@ -165,7 +165,9 @@ public class EntityEnderman extends EntityWalkingMob {
         }
 
         int b = level.getBlockIdAt(chunk, this.getFloorX(), this.getFloorY(), this.getFloorZ());
-        if (Block.isWater(b) || (this.level.isRaining() && Utils.rand() && this.canSeeSky() && Biome.getBiome(level.getBiomeId((int) x, (int) z)).canRain())) {
+        if (this.isOnFire()) {
+            this.teleport();
+        } else if (Block.isWater(b) || (this.level.isRaining() && Utils.rand() && this.canSeeSky() && Biome.getBiome(level.getBiomeId((int) x, (int) z)).canRain())) {
             this.attack(new EntityDamageEvent(this, EntityDamageEvent.DamageCause.DROWNING, 1));
             this.setAngry(0);
             this.teleport();
