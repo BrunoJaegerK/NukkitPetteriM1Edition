@@ -22,6 +22,7 @@ import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.network.protocol.AnimatePacket;
 import cn.nukkit.network.protocol.ProtocolInfo;
 import cn.nukkit.network.protocol.SetEntityLinkPacket;
+import cn.nukkit.network.protocol.MovePlayerPacket;
 
 import java.util.ArrayList;
 
@@ -318,13 +319,33 @@ public class EntityBoat extends EntityVehicle implements EntityControllable {
 
     @Override
     protected void updatePassengerPosition(Entity passenger) {
-        // Entity.dismountEntity() clears the passenger's seat position before
-        // calling this method. Do not run updatePassengers() for a passenger
-        // that has already left the boat: doing so skips the base update and
-        // can leave the player at an invalid/stale riding position.
         if (passenger.riding == this && this.passengers.contains(passenger)) {
             updatePassengers();
+            return;
         }
+
+        // Entity.dismountEntity() calls this after clearing the riding link.
+        // Move the former passenger beside the boat and explicitly correct the
+        // Bedrock client position so it cannot keep snapping to the old seat.
+        double yawRadians = Math.toRadians(this.yaw);
+        double sideX = -Math.sin(yawRadians);
+        double sideZ = Math.cos(yawRadians);
+        double exitY = passenger.y;
+
+        Vector3 exitPosition = new Vector3(this.x + sideX * 1.2, exitY, this.z + sideZ * 1.2);
+        passenger.setPosition(exitPosition);
+
+        // If this side is obstructed, use the other side of the boat.
+        if (this.level.getCollisionBlocks(passenger.getBoundingBox()).length > 0) {
+            exitPosition = new Vector3(this.x - sideX * 1.2, exitY, this.z - sideZ * 1.2);
+            passenger.setPosition(exitPosition);
+        }
+
+        if (passenger instanceof Player) {
+            Player player = (Player) passenger;
+            player.sendPosition(exitPosition, player.yaw, player.pitch, MovePlayerPacket.MODE_RESET);
+        }
+        passenger.updateMovement();
     }
 
     @Override
@@ -504,9 +525,34 @@ public class EntityBoat extends EntityVehicle implements EntityControllable {
         if (up) acceleration += 0.04F;
         if (down) acceleration -= 0.005F;
 
-        double yaw = getYaw() - 90;
-        setMotion(getMotion().add(FastMathLite.sin((-yaw * 0.017453292F)) * acceleration, 0, FastMathLite.cos((yaw * 0.017453292F)) * acceleration));
+        // Keep forward momentum aligned with the boat's new heading after a
+        // turn. Otherwise the old velocity continues in the previous
+        // direction and can feel like the boat briefly moves backwards.
+        double yawRadians = Math.toRadians(getYaw());
+        double directionX = Math.cos(yawRadians);
+        double directionZ = Math.sin(yawRadians);
+        Vector3 motion = getMotion();
+        double motionX = motion.x;
+        double motionZ = motion.z;
 
-        onPaddle(left ? AnimatePacket.Action.ROW_LEFT : AnimatePacket.Action.ROW_RIGHT, (float) (left ? -this.deltaRotation : this.deltaRotation));
+        if (up) {
+            double horizontalSpeed = Math.sqrt(motionX * motionX + motionZ * motionZ);
+            if (horizontalSpeed > 0.0001) {
+                motionX = directionX * horizontalSpeed;
+                motionZ = directionZ * horizontalSpeed;
+            }
+        }
+
+        setMotion(new Vector3(
+                motionX + directionX * acceleration,
+                motion.y,
+                motionZ + directionZ * acceleration
+        ));
+
+        if (left) {
+            onPaddle(AnimatePacket.Action.ROW_LEFT, (float) -this.deltaRotation);
+        } else if (right) {
+            onPaddle(AnimatePacket.Action.ROW_RIGHT, (float) this.deltaRotation);
+        }
     }
 }
