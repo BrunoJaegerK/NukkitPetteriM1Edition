@@ -318,7 +318,13 @@ public class EntityBoat extends EntityVehicle implements EntityControllable {
 
     @Override
     protected void updatePassengerPosition(Entity passenger) {
-        updatePassengers();
+        // Entity.dismountEntity() clears the passenger's seat position before
+        // calling this method. Do not run updatePassengers() for a passenger
+        // that has already left the boat: doing so skips the base update and
+        // can leave the player at an invalid/stale riding position.
+        if (passenger.riding == this && this.passengers.contains(passenger)) {
+            updatePassengers();
+        }
     }
 
     @Override
