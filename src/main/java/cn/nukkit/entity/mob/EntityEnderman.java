@@ -324,24 +324,27 @@ public class EntityEnderman extends EntityWalkingMob {
     }
 
     private Location getSafeTpLocation() {
-        double dx = this.x + Utils.rand(-16, 16);
-        double dz = this.z + Utils.rand(-16, 16);
-        Vector3 pos = new Vector3(Math.floor(dx), (int) Math.floor(this.y + 0.1) + 16, Math.floor(dz));
-        FullChunk chunk = this.level.getChunk((int) pos.x >> 4, (int) pos.z >> 4, false);
-        int x = (int) pos.x & 0x0f;
-        int z = (int) pos.z & 0x0f;
-        int previousY1 = -1000;
-        int previousY2 = -1000;
-        int previousY3 = -1000;
-        if (chunk != null && chunk.isGenerated()) {
+        for (int attempt = 0; attempt < 16; attempt++) {
+            double dx = this.x + Utils.rand(-16, 16);
+            double dz = this.z + Utils.rand(-16, 16);
+            Vector3 pos = new Vector3(Math.floor(dx), (int) Math.floor(this.y + 0.1) + 16, Math.floor(dz));
+            FullChunk chunk = this.level.getChunk((int) pos.x >> 4, (int) pos.z >> 4, false);
+            if (chunk == null || !chunk.isGenerated()) {
+                continue;
+            }
+
+            int x = (int) pos.x & 0x0f;
+            int z = (int) pos.z & 0x0f;
+            int previousY1 = -1000;
+            int previousY2 = -1000;
+            int previousY3 = -1000;
             for (int y = Math.min(this.level.getMaxBlockY(), (int) pos.y); y >= this.level.getMinBlockY(); y--) {
-                if (previousY1 > -1000 && previousY2 > -1000 && previousY3 > -1000) {
-                    if (Block.isBlockSolidById(chunk.getBlockId(x, y, z))
-                            && chunk.getBlockId(x, previousY1, z) == 0
-                            && chunk.getBlockId(x, previousY2, z) == 0
-                            && chunk.getBlockId(x, previousY3, z) == 0) {
-                        return new Location(pos.x + 0.5, previousY1 + 0.1, pos.z + 0.5, this.level);
-                    }
+                if (previousY1 > -1000 && previousY2 > -1000 && previousY3 > -1000
+                        && Block.isBlockSolidById(chunk.getBlockId(x, y, z))
+                        && chunk.getBlockId(x, previousY1, z) == Block.AIR
+                        && chunk.getBlockId(x, previousY2, z) == Block.AIR
+                        && chunk.getBlockId(x, previousY3, z) == Block.AIR) {
+                    return new Location(pos.x + 0.5, previousY1 + 0.1, pos.z + 0.5, this.level);
                 }
                 previousY3 = previousY2;
                 previousY2 = previousY1;
