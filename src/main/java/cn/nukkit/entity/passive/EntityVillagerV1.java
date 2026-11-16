@@ -562,7 +562,6 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
         if (this.level.isRaining()) {
             this.sleepingRoutine = false;
-            this.workingRoutine = false;
             this.wakeFromRoutineSleep();
             this.setGenericFlag(DATA_FLAG_SLEEPING, false);
             this.routinePoiBlock = null;
@@ -633,7 +632,6 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
         this.sleepingRoutine = !this.level.isRaining() && (time >= 13000 || time < 1000);
         if (!this.sleepingRoutine) {
-            this.workingRoutine = false;
             this.wakeFromRoutineSleep();
             this.setGenericFlag(DATA_FLAG_SLEEPING, false);
         }
