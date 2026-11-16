@@ -13,7 +13,8 @@ This fork includes dedicated AI improvements for the following Bedrock entities:
 - **Ender Dragon:** target acquisition, orbiting and strafing, close charge passes, ranged fireball attacks, crystal healing, and non-colliding flight movement.
 - **Enderman:** player-stare anger, pursuit teleports, water/rain/fire escape, Endermite targeting, and vanilla-style block pickup and placement.
 - **Shulker:** attachment and peek metadata, defensive shell behavior, projectile attacks with levitation, safe relocation, and retaliation against attackers.
-- **Villagers:** daily work, meeting and rest routines, hostile-mob avoidance, baby following, food pickup and sharing, breeding, rain shelter, door opening, and farmer crop harvesting/replanting.
+- **Villagers:** daily work, meeting and rest routines, hostile-mob avoidance, baby following, food pickup/sharing, wheat-to-bread crafting, breeding, sleeping state, rain shelter, wooden-door opening/closing, and farmer crop harvesting/replanting.
+- **Villager professions:** unemployed villagers can claim nearby workstations (composter, barrel, loom, fletching table, lectern, cartography table, brewing stand, blast furnace, grindstone, smithing table, smoker, cauldron and stonecutter). Their Bedrock profession/skin metadata updates immediately; villagers without trades can lose the profession if their claimed workstation is removed.
 
 ### Required settings
 
