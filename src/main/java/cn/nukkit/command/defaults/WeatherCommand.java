@@ -49,6 +49,13 @@ public class WeatherCommand extends VanillaCommand {
             seconds = 600;
         }
 
+        // Weather timers are stored in ticks using a signed 32-bit integer.
+        // Reject invalid durations instead of allowing overflow or instant transitions.
+        if (seconds <= 0 || seconds > Integer.MAX_VALUE / 20) {
+            sender.sendMessage(new TranslationContainer("commands.generic.usage", this.usageMessage));
+            return true;
+        }
+
         if (sender instanceof Player) {
             level = ((Player) sender).getLevel();
         } else {
@@ -57,21 +64,30 @@ public class WeatherCommand extends VanillaCommand {
 
         switch (weather) {
             case "clear":
-                level.setRaining(false);
-                level.setThundering(false);
+                if (!level.setRaining(false) || !level.setThundering(false)) {
+                    return true;
+                }
                 level.setRainTime(seconds * 20);
                 level.setThunderTime(seconds * 20);
                 Command.broadcastCommandMessage(sender,
                         new TranslationContainer("commands.weather.clear"));
                 return true;
             case "rain":
-                level.setRaining(true);
+                // The rain command selects rain, not the thunderstorm variant.
+                if (!level.setThundering(false)) {
+                    return true;
+                }
+                if (!level.setRaining(true)) {
+                    return true;
+                }
                 level.setRainTime(seconds * 20);
                 Command.broadcastCommandMessage(sender,
                         new TranslationContainer("commands.weather.rain"));
                 return true;
             case "thunder":
-                level.setThundering(true);
+                if (!level.setThundering(true)) {
+                    return true;
+                }
                 level.setRainTime(seconds * 20);
                 level.setThunderTime(seconds * 20);
                 Command.broadcastCommandMessage(sender,

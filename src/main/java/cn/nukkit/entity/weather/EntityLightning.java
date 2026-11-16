@@ -12,6 +12,8 @@ import cn.nukkit.math.AxisAlignedBB;
 import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.network.protocol.LevelSoundEventPacket;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -25,6 +27,8 @@ public class EntityLightning extends Entity implements EntityLightningStrike {
 
     public int state;
     public int liveTime;
+    private boolean initialEffectsApplied;
+    private final Set<Long> struckEntities = new HashSet<>();
 
     public EntityLightning(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -42,25 +46,30 @@ public class EntityLightning extends Entity implements EntityLightningStrike {
         this.state = 2;
         this.liveTime = ThreadLocalRandom.current().nextInt(3) + 1;
 
-        if (isEffect && this.level.gameRules.getBoolean(GameRule.DO_FIRE_TICK) && (this.server.getDifficulty() >= 2)) {
-            Block block = this.level.getBlock(this.chunk, this.getFloorX(), this.getFloorY(), this.getFloorZ(), true);
+    }
 
-            if (block.getId() == BlockID.AIR || block.getId() == BlockID.TALL_GRASS) {
-                BlockFire fire = (BlockFire) Block.get(BlockID.FIRE);
-                fire.x = block.x;
-                fire.y = block.y;
-                fire.z = block.z;
-                fire.level = this.level;
+    private void igniteFire() {
+        if (!this.isEffect || !this.level.gameRules.getBoolean(GameRule.DO_FIRE_TICK) || this.server.getDifficulty() < 2) {
+            return;
+        }
 
-                if (fire.isBlockTopFacingSurfaceSolid(fire.down()) || fire.canNeighborBurn()) {
-                    BlockIgniteEvent e = new BlockIgniteEvent(block, null, this, BlockIgniteEvent.BlockIgniteCause.LIGHTNING);
-                    getServer().getPluginManager().callEvent(e);
+        Block block = this.level.getBlock(this.chunk, this.getFloorX(), this.getFloorY(), this.getFloorZ(), true);
+        if (block.getId() != BlockID.AIR && block.getId() != BlockID.TALL_GRASS) {
+            return;
+        }
 
-                    if (!e.isCancelled()) {
-                        level.setBlock(fire, fire, true);
-                        level.scheduleUpdate(fire, fire.tickRate() + ThreadLocalRandom.current().nextInt(10));
-                    }
-                }
+        BlockFire fire = (BlockFire) Block.get(BlockID.FIRE);
+        fire.x = block.x;
+        fire.y = block.y;
+        fire.z = block.z;
+        fire.level = this.level;
+
+        if (fire.isBlockTopFacingSurfaceSolid(fire.down()) || fire.canNeighborBurn()) {
+            BlockIgniteEvent event = new BlockIgniteEvent(block, null, this, BlockIgniteEvent.BlockIgniteCause.LIGHTNING);
+            this.server.getPluginManager().callEvent(event);
+            if (!event.isCancelled()) {
+                this.level.setBlock(fire, fire, true);
+                this.level.scheduleUpdate(fire, fire.tickRate() + ThreadLocalRandom.current().nextInt(10));
             }
         }
     }
@@ -95,6 +104,13 @@ public class EntityLightning extends Entity implements EntityLightningStrike {
 
         this.entityBaseTick(tickDiff);
 
+        // The strike event is fired before the entity is spawned. Apply the first
+        // world effect on its first tick so cancelled strikes remain visual-only.
+        if (!this.initialEffectsApplied) {
+            this.initialEffectsApplied = true;
+            this.igniteFire();
+        }
+
         if (this.state == 2) {
             this.level.addLevelSoundEvent(this, LevelSoundEventPacket.SOUND_THUNDER, -1, EntityLightning.NETWORK_ID);
             this.level.addLevelSoundEvent(this, LevelSoundEventPacket.SOUND_EXPLODE, -1, EntityLightning.NETWORK_ID);
@@ -110,30 +126,17 @@ public class EntityLightning extends Entity implements EntityLightningStrike {
                 this.liveTime--;
                 this.state = 1;
 
-                if (this.isEffect && this.level.gameRules.getBoolean(GameRule.DO_FIRE_TICK)) {
-                    Block block = this.level.getBlock(this.chunk, this.getFloorX(), this.getFloorY(), this.getFloorZ(), true);
-
-                    if (block.getId() == Block.AIR || block.getId() == Block.TALL_GRASS) {
-                        BlockIgniteEvent e = new BlockIgniteEvent(block, null, this, BlockIgniteEvent.BlockIgniteCause.LIGHTNING);
-                        getServer().getPluginManager().callEvent(e);
-
-                        if (!e.isCancelled()) {
-                            Block fire = Block.get(BlockID.FIRE);
-                            this.level.setBlock(block, fire);
-                            this.getLevel().scheduleUpdate(fire, fire.tickRate());
-                        }
-                    }
-                }
+                this.igniteFire();
             }
         }
 
         if (this.state >= 0) {
             if (this.isEffect) {
                 AxisAlignedBB bb = getBoundingBox().grow(3, 3, 3);
-                bb.setMaxX(bb.getMaxX() + 6);
-
                 for (Entity entity : this.level.getCollidingEntities(bb, this)) {
-                    entity.onStruckByLightning(this);
+                    if (this.struckEntities.add(entity.getId())) {
+                        entity.onStruckByLightning(this);
+                    }
                 }
             }
         }

@@ -18,6 +18,7 @@ import cn.nukkit.entity.passive.EntityIronGolem;
 import cn.nukkit.entity.projectile.EntityProjectile;
 import cn.nukkit.entity.weather.EntityLightning;
 import cn.nukkit.event.block.BlockBreakEvent;
+import cn.nukkit.event.block.BlockFormEvent;
 import cn.nukkit.event.block.BlockPlaceEvent;
 import cn.nukkit.event.block.BlockUpdateEvent;
 import cn.nukkit.event.entity.CreatureSpawnEvent;
@@ -371,7 +372,8 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
             setRainTime(ThreadLocalRandom.current().nextInt(168000) + 12000);
         }
 
-        this.thundering = this.provider.isThundering();
+        // A saved thunder flag without rain is an invalid weather combination.
+        this.thundering = this.raining && this.provider.isThundering();
         this.thunderTime = this.provider.getThunderTime();
         if (this.thunderTime <= 0) {
             setThunderTime(ThreadLocalRandom.current().nextInt(168000) + 12000);
@@ -971,7 +973,7 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
         }
 
         // Tick Weather
-        if (this.getDimension() != DIMENSION_NETHER && this.getDimension() != DIMENSION_THE_END && this.gameRules.getBoolean(GameRule.DO_WEATHER_CYCLE) && this.randomTickingEnabled()) {
+        if (this.getDimension() != DIMENSION_NETHER && this.getDimension() != DIMENSION_THE_END && this.gameRules.getBoolean(GameRule.DO_WEATHER_CYCLE)) {
             this.rainTime--;
             if (this.rainTime <= 0) {
                 if (!this.setRaining(!this.raining)) {
@@ -1001,11 +1003,11 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
                     ObjectIterator<? extends Long2ObjectMap.Entry<? extends FullChunk>> iter = fastChunks.long2ObjectEntrySet().fastIterator();
                     while (iter.hasNext()) {
                         Long2ObjectMap.Entry<? extends FullChunk> entry = iter.next();
-                        performThunder(entry.getLongKey(), entry.getValue());
+                        performThunder(entry.getValue());
                     }
                 } else {
                     for (Map.Entry<Long, ? extends FullChunk> entry : chunks.entrySet()) {
-                        performThunder(entry.getKey(), entry.getValue());
+                        performThunder(entry.getValue());
                     }
                 }
             }
@@ -1107,12 +1109,8 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
         }
     }
 
-    private void performThunder(long index, FullChunk chunk) {
+    private void performThunder(FullChunk chunk) {
         if (ThreadLocalRandom.current().nextInt(100000) < 1) {
-            if (areNeighboringChunksLoaded(index)) {
-                return;
-            }
-
             int LCG = this.getUpdateLCG() >> 2;
 
             int chunkX = chunk.getX() << 4;
@@ -1120,13 +1118,21 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
             Vector3 vector = this.adjustPosToNearbyEntity(new Vector3(chunkX + (LCG & 0xf), 0, chunkZ + (LCG >> 8 & 0xf)));
 
             Biome biome = Biome.getBiome(this.getBiomeId(vector.getFloorX(), vector.getFloorZ()));
-            if (!biome.canRain()) {
+            // Lightning can occur in both rainy and snowy overworld biomes.
+            if (!biome.canRain() && !biome.isFreezing()) {
                 return;
             }
 
             int bId = this.getBlockIdAt(vector.getFloorX(), vector.getFloorY(), vector.getFloorZ());
             if (bId != Block.TALL_GRASS && bId != Block.WATER)
                 vector.y += 1;
+            // The strike may be redirected to a nearby exposed entity in an adjacent
+            // chunk. Attach the lightning entity to the chunk containing its final position.
+            FullChunk strikeChunk = this.provider.getLoadedChunk(vector.getFloorX() >> 4, vector.getFloorZ() >> 4);
+            if (strikeChunk == null) {
+                return;
+            }
+
             CompoundTag nbt = new CompoundTag()
                     .putList(new ListTag<DoubleTag>("Pos").add(new DoubleTag("", vector.x))
                             .add(new DoubleTag("", vector.y)).add(new DoubleTag("", vector.z)))
@@ -1135,7 +1141,7 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
                     .putList(new ListTag<FloatTag>("Rotation").add(new FloatTag("", 0))
                             .add(new FloatTag("", 0)));
 
-            EntityLightning bolt = (EntityLightning) Entity.createEntity(EntityLightning.NETWORK_ID, chunk, nbt);
+            EntityLightning bolt = (EntityLightning) Entity.createEntity(EntityLightning.NETWORK_ID, strikeChunk, nbt);
             LightningStrikeEvent ev = new LightningStrikeEvent(this, bolt);
             server.getPluginManager().callEvent(ev);
             if (!ev.isCancelled()) {
@@ -1362,6 +1368,12 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
                 continue;
             }
 
+            // Weather precipitation is independent from random block ticking and
+            // does not require neighboring chunks to be loaded.
+            if (this.raining && this.getDimension() == DIMENSION_OVERWORLD) {
+                tickSnowAccumulation(chunk);
+            }
+
             if (!areNeighboringChunksLoaded(index)) {
                 continue;
             }
@@ -1422,6 +1434,64 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Simulates a local snowfall precipitation tick for a loaded chunk.
+     * A single surface column is sampled per chunk tick, so snow builds up
+     * gradually without scanning every block in the chunk.
+     */
+    private void tickSnowAccumulation(FullChunk chunk) {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        if (random.nextInt(16) != 0) {
+            return;
+        }
+
+        int x = (chunk.getX() << 4) + random.nextInt(16);
+        int z = (chunk.getZ() << 4) + random.nextInt(16);
+        Biome biome = Biome.getBiome(chunk.getBiomeId(x & 0x0f, z & 0x0f));
+        if (!biome.isFreezing()) {
+            return;
+        }
+
+        int surfaceY = chunk.getHighestBlockAt(x & 0x0f, z & 0x0f, false);
+        if (surfaceY < this.getMinBlockY() || surfaceY >= this.getMaxBlockY()) {
+            return;
+        }
+
+        Block surface = this.getBlock(chunk, x, surfaceY, z, true);
+        if (!this.canBlockSeeSky(new Vector3(x, surfaceY + 1, z))) {
+            return;
+        }
+        int targetY;
+        int snowLayers = 0;
+
+        if (surface instanceof BlockSnowLayer) {
+            targetY = surfaceY;
+            snowLayers = surface.getDamage() & 0x7;
+            if (snowLayers >= 7) {
+                return;
+            }
+        } else {
+            // Snow can only rest on a solid supporting surface.
+            if (!surface.isSolid() || surface.getId() == Block.ICE
+                    || surface.getId() == Block.PACKED_ICE || surface.getId() == Block.ICE_FROSTED) {
+                return;
+            }
+            targetY = surfaceY + 1;
+            if (this.getBlock(chunk, x, targetY, z, true).getId() != Block.AIR) {
+                return;
+            }
+        }
+
+        int newLayers = snowLayers + 1;
+        Block oldState = this.getBlock(chunk, x, targetY, z, true);
+        Block newState = Block.get((Block.SNOW_LAYER << Block.DATA_BITS) | (newLayers - 1), this, x, targetY, z);
+        BlockFormEvent event = new BlockFormEvent(oldState, newState);
+        this.server.getPluginManager().callEvent(event);
+        if (!event.isCancelled()) {
+            this.setBlock(x, targetY, z, event.getNewState(), false, true);
         }
     }
 
@@ -4516,6 +4586,10 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
     }
 
     public boolean setRaining(boolean raining) {
+        if (this.raining == raining) {
+            return true;
+        }
+
         WeatherChangeEvent ev = new WeatherChangeEvent(this, raining);
         this.server.getPluginManager().callEvent(ev);
 
@@ -4523,11 +4597,15 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
             return false;
         }
 
+        // Thunder is a rain state in Bedrock. Stop it before ending precipitation
+        // so clients and the stored world state cannot disagree.
+        if (!raining && this.thundering && !setThundering(false)) {
+            return false;
+        }
+
         this.raining = raining;
 
         LevelEventPacket pk = new LevelEventPacket();
-        // These numbers are from Minecraft
-
         if (raining) {
             pk.evid = LevelEventPacket.EVENT_START_RAIN;
             int time = ThreadLocalRandom.current().nextInt(12000) + 12000;
@@ -4539,7 +4617,6 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
         }
 
         Server.broadcastPacket(this.getPlayersList(), pk);
-
         return true;
     }
 
@@ -4556,6 +4633,15 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
     }
 
     public boolean setThundering(boolean thundering) {
+        if (this.thundering == thundering) {
+            return true;
+        }
+
+        // Do not enter a thunder state if the rain transition was cancelled by a plugin.
+        if (thundering && !this.raining && !setRaining(true)) {
+            return false;
+        }
+
         ThunderChangeEvent ev = new ThunderChangeEvent(this, thundering);
         this.server.getPluginManager().callEvent(ev);
 
@@ -4563,14 +4649,9 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
             return false;
         }
 
-        if (thundering && !raining) {
-            setRaining(true);
-        }
-
         this.thundering = thundering;
 
         LevelEventPacket pk = new LevelEventPacket();
-        // These numbers are from Minecraft
         if (thundering) {
             pk.evid = LevelEventPacket.EVENT_START_THUNDER;
             int time = ThreadLocalRandom.current().nextInt(12000) + 3600;
@@ -4582,7 +4663,6 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
         }
 
         Server.broadcastPacket(this.getPlayersList(), pk);
-
         return true;
     }
 
