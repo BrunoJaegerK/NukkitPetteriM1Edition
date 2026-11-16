@@ -649,7 +649,21 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                     && this.getProfessionForWorkstation(siteChunk.getBlockId(siteX & 0x0f, siteY, siteZ & 0x0f)) == this.getProfession()) {
                 nextTarget = new Vector3(this.jobSite.x, this.jobSite.y, this.jobSite.z);
                 this.routinePoiBlock = new Vector3(siteX, siteY, siteZ);
+            } else if (siteChunk != null && siteChunk.isGenerated()) {
+                // The claimed workstation was replaced: release the stale POI and
+                // allow this villager to claim a reachable workstation of its profession.
+                this.jobSite = null;
+                this.jobSiteBlock = null;
             }
+        }
+        if (wantedBlocks != null && time >= 2000 && time < 9000
+                && this.jobSite == null && this.jobSiteBlock == null
+                && nextTarget != null && this.routinePoiBlock != null) {
+            // Migrate older villagers whose profession was saved without its POI.
+            this.jobSite = nextTarget.clone();
+            this.jobSiteBlock = this.routinePoiBlock.clone();
+            this.level.addParticle(new HappyVillagerParticle(
+                    new Vector3(this.jobSiteBlock.x + 0.5, this.jobSiteBlock.y + 1.0, this.jobSiteBlock.z + 0.5)));
         }
         this.routineTarget = nextTarget;
         if (this.sleepingRoutine && this.routineTarget != null
