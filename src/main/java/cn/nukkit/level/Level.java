@@ -4525,16 +4525,16 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
             return true;
         }
 
-        // Thunder is a rain state in Bedrock. Stop it before ending precipitation
-        // so clients and the stored world state cannot disagree.
-        if (!raining && this.thundering && !setThundering(false)) {
-            return false;
-        }
-
         WeatherChangeEvent ev = new WeatherChangeEvent(this, raining);
         this.server.getPluginManager().callEvent(ev);
 
         if (ev.isCancelled()) {
+            return false;
+        }
+
+        // Thunder is a rain state in Bedrock. Stop it before ending precipitation
+        // so clients and the stored world state cannot disagree.
+        if (!raining && this.thundering && !setThundering(false)) {
             return false;
         }
 
