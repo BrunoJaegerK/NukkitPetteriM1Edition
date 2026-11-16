@@ -20,10 +20,10 @@ public class TradeInventoryRecipe {
     private int maxUses = 999;
     private int buyCountA = 0;
     private int buyCountB = 0;
-    private final int uses = 0;
+    private int uses = 0;
     private int demand = 0;
     private int rewardsExp = 0;
-    private final int traderExp = 0;
+    private int traderExp = 0;
     private float priceMultiplierA = 0F;
     private float priceMultiplierB = 0F;
 
@@ -49,14 +49,15 @@ public class TradeInventoryRecipe {
 
     public TradeInventoryRecipe setBuyCount(int count, int type) {
         switch (type) {
-            case 0:
+            case A_ITEM:
                 this.buyCountA = count;
                 break;
-            case 1:
+            case B_ITEM:
                 this.buyCountB = count;
                 break;
+            default:
+                throw new IllegalArgumentException("Unknown trade input slot: " + type);
         }
-        this.buyCountA = count;
         return this;
     }
 
@@ -79,6 +80,16 @@ public class TradeInventoryRecipe {
 
     public TradeInventoryRecipe setRewardExp(int reward) {
         this.rewardsExp = reward;
+        return this;
+    }
+
+    public TradeInventoryRecipe setUses(int uses) {
+        this.uses = Math.max(0, uses);
+        return this;
+    }
+
+    public TradeInventoryRecipe setTraderExp(int traderExp) {
+        this.traderExp = Math.max(0, traderExp);
         return this;
     }
 
@@ -106,8 +117,10 @@ public class TradeInventoryRecipe {
                 .setBuyCount(nbt.getInt("buyCountA"), A_ITEM)
                 .setBuyCount(nbt.getInt("buyCountB"), B_ITEM)
                 .setMaxUses(nbt.getInt("maxUses"))
-                .setMultiplier(nbt.getInt("priceMultiplierA"), A_ITEM)
-                .setMultiplier(nbt.getInt("priceMultiplierB"), B_ITEM)
+                .setUses(nbt.getInt("uses"))
+                .setTraderExp(nbt.getInt("traderExp"))
+                .setMultiplier(nbt.getFloat("priceMultiplierA"), A_ITEM)
+                .setMultiplier(nbt.getFloat("priceMultiplierB"), B_ITEM)
                 .setDemand(nbt.getInt("demand"))
                 .setRewardExp(nbt.getInt("rewardExp"));
     }
