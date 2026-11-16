@@ -87,7 +87,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     private Vector3 routinePoiBlock;
     private Vector3 sleepingBedPosition;
     private Vector3 sleepingReturnPosition;
-    private boolean workingRoutine;
+    private int routineSchedulePhase = Integer.MIN_VALUE;
 
     public EntityVillagerV1(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -300,7 +300,6 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
         if (threat != null) {
             this.sleepingRoutine = false;
-            this.workingRoutine = false;
             this.wakeFromRoutineSleep();
             this.setGenericFlag(DATA_FLAG_SLEEPING, false);
             double dx = this.x - threat.x;
@@ -359,12 +358,11 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                         && this.routineTarget.equals(this.jobSite)
                         && this.distanceSquared(this.routineTarget) <= 2.25) {
                     // Remain at the claimed workstation for the work portion of the day.
-                    this.workingRoutine = true;
+                    this.routineSchedulePhase = this.getRoutineSchedulePhase();
                     this.setGenericFlag(DATA_FLAG_SLEEPING, false);
                     this.stayTime = 200;
                     return;
                 }
-                this.workingRoutine = false;
                 this.followTarget = null;
                 // Keep the route finder aimed at the current routine destination. Replacing
                 // its next waypoint with the final target every tick makes villagers walk
@@ -546,7 +544,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
      * searched only every 10 seconds and only in already-loaded chunks.
      */
     private void updateRoutineTarget() {
-        this.routineSearchTicks = 20;
+        this.routineSearchTicks = 200;
         if (this.jobSiteBlock != null && this.getProfession() != PROFESSION_GENERIC) {
             int jobX = this.jobSiteBlock.getFloorX();
             int jobY = this.jobSiteBlock.getFloorY();
@@ -963,6 +961,11 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         if (this.routineSearchTicks > 0) {
             this.routineSearchTicks = Math.max(0, this.routineSearchTicks - Math.max(0, tickDiff));
         }
+        int schedulePhase = this.getRoutineSchedulePhase();
+        if (schedulePhase != this.routineSchedulePhase) {
+            this.routineSchedulePhase = schedulePhase;
+            this.routineSearchTicks = 0;
+        }
         if (this.sleepingBedPosition != null) {
             int bedX = this.sleepingBedPosition.getFloorX();
             int bedY = this.sleepingBedPosition.getFloorY();
@@ -1015,6 +1018,18 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         }
         this.closeOpenedDoorIfPassed();
         return updated;
+    }
+
+    private int getRoutineSchedulePhase() {
+        if (this.level.isRaining()) {
+            return -1;
+        }
+        long time = Math.floorMod((long) this.level.getTime(), 24000L);
+        if (time >= 13000 || time < 1000) return 0; // Rest
+        if (time < 2000) return 1; // Wake / wander
+        if (time < 9000) return 2; // Work
+        if (time < 11000) return 3; // Meeting
+        return 4; // Wander / play
     }
 
     private boolean isVillagerSleepTime() {
