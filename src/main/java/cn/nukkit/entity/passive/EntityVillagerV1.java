@@ -175,14 +175,48 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
     }
 
-    /** Applies the correct Bedrock clothing variant when a villager receives a profession. */
+    /** Applies Bedrock villager metadata. Modern villager_v2 uses variant for profession
+     * and mark_variant for the biome clothing set; legacy villagers keep their old variant. */
     private void updateProfessionMetadata() {
         int profession = this.getProfession();
         if (this.getNetworkId() == EntityVillager.NETWORK_ID) {
-            this.setDataProperty(new IntEntityData(DATA_VARIANT, this.getModernSkinVariant(profession)));
-            this.setDataProperty(new IntEntityData(DATA_MARK_VARIANT, this.getModernProfessionId(profession)));
+            this.setDataProperty(new IntEntityData(DATA_VARIANT, this.getModernProfessionId(profession)));
+            this.setDataProperty(new IntEntityData(DATA_MARK_VARIANT, this.getModernBiomeSkinVariant()));
         } else {
             this.setDataProperty(new IntEntityData(DATA_VARIANT, this.getLegacySkinVariant(profession)));
+        }
+    }
+
+    private int getModernBiomeSkinVariant() {
+        int biomeId;
+        try {
+            biomeId = this.level.getBiomeId(this.getFloorX(), this.getFloorZ());
+        } catch (RuntimeException ignored) {
+            return 0;
+        }
+        switch (biomeId) {
+            // Desert
+            case 2: case 17: case 130:
+                return 1;
+            // Jungle and bamboo jungle
+            case 21: case 22: case 23: case 48: case 49: case 149: case 151:
+                return 2;
+            // Savanna
+            case 35: case 36: case 163: case 164:
+                return 3;
+            // Snowy biomes
+            case 10: case 11: case 12: case 13: case 26: case 30: case 31:
+            case 44: case 45: case 46: case 47: case 140: case 158:
+                return 4;
+            // Swamp
+            case 6: case 134:
+                return 5;
+            // Taiga
+            case 5: case 19: case 32: case 33: case 133: case 160: case 161:
+                return 6;
+            // Plains is the Bedrock default; other unsupported families safely use it.
+            default:
+                return 0;
         }
     }
 
@@ -197,28 +231,23 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         }
     }
 
-    private int getModernSkinVariant(int profession) {
-        return this.getLegacySkinVariant(profession);
-    }
-
     private int getModernProfessionId(int profession) {
+        // Bedrock villager_v2 profession variants: unemployed=0, farmer=1 ... mason=13.
         switch (profession) {
-            case PROFESSION_FARMER: return 0;
-            case PROFESSION_FISHERMAN: return 1;
-            case PROFESSION_SHEPHERD: return 2;
-            case PROFESSION_FLETCHER: return 3;
-            case PROFESSION_LIBRARIAN: return 4;
-            case PROFESSION_CARTOGRAPHER: return 5;
-            case PROFESSION_PRIEST: return 6;
-            case PROFESSION_ARMORER: return 7;
-            case PROFESSION_WEAPONSMITH: return 8;
-            case PROFESSION_TOOLSMITH: return 9;
-            case PROFESSION_BUTCHER: return 10;
-            case PROFESSION_LEATHERWORKER: return 11;
-            case PROFESSION_MASON: return 12;
-            case PROFESSION_BLACKSMITH: return 7;
-            case PROFESSION_GENERIC: return 13;
-            default: return 0;
+            case PROFESSION_FARMER: return 1;
+            case PROFESSION_FISHERMAN: return 2;
+            case PROFESSION_SHEPHERD: return 3;
+            case PROFESSION_FLETCHER: return 4;
+            case PROFESSION_LIBRARIAN: return 5;
+            case PROFESSION_CARTOGRAPHER: return 6;
+            case PROFESSION_PRIEST: return 7;
+            case PROFESSION_ARMORER: case PROFESSION_BLACKSMITH: return 8;
+            case PROFESSION_WEAPONSMITH: return 9;
+            case PROFESSION_TOOLSMITH: return 10;
+            case PROFESSION_BUTCHER: return 11;
+            case PROFESSION_LEATHERWORKER: return 12;
+            case PROFESSION_MASON: return 13;
+            case PROFESSION_GENERIC: default: return 0;
         }
     }
 
@@ -319,9 +348,20 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                     return;
                 }
                 this.followTarget = null;
-                this.target = this.routineTarget;
+                // Keep the route finder aimed at the current routine destination. Replacing
+                // its next waypoint with the final target every tick makes villagers walk
+                // straight into walls and never reach the workstation.
+                if (this.route == null || this.route.getDestination() == null
+                        || !this.route.getDestination().equals(this.routineTarget)) {
+                    this.route = new WalkerRouteFinder(this, this, this.routineTarget);
+                }
+                if (this.route.hasCurrentNode()) {
+                    this.target = this.route.getCurrentNode().getVector3();
+                } else {
+                    this.target = this.routineTarget;
+                }
                 this.stayTime = 0;
-                this.openDoorToward(this.routineTarget);
+                this.openDoorToward(this.target);
                 return;
             }
             this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
