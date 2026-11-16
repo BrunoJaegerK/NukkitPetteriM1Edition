@@ -683,6 +683,31 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     }
 
     /**
+     * Detect a POI being removed/replaced even when the villager is not currently
+     * sleeping. This is a single-block check per entity tick, not a world scan.
+     */
+    private void validateRoutinePoiAssociation() {
+        if (this.lastAssociatedPoiBlock == null) {
+            return;
+        }
+        int x = this.lastAssociatedPoiBlock.getFloorX();
+        int y = this.lastAssociatedPoiBlock.getFloorY();
+        int z = this.lastAssociatedPoiBlock.getFloorZ();
+        FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+        if (chunk == null || !chunk.isGenerated()) {
+            return;
+        }
+        Block poi = this.level.getBlock(chunk, x, y, z, false);
+        if (poi.getId() != this.lastAssociatedPoiId || poi.getDamage() != this.lastAssociatedPoiMeta) {
+            this.lastAssociatedPoiBlock = null;
+            this.lastAssociatedPoiId = -1;
+            this.lastAssociatedPoiMeta = -1;
+            this.routineSearchTicks = 0;
+            this.routineTarget = null;
+        }
+    }
+
+    /**
      * Emit association particles when a villager claims a different workstation or bed.
      * Compare the actual POI block and its metadata, not only the standing position:
      * replacing a bed at the same coordinates can keep the stand position unchanged.
@@ -1017,6 +1042,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         if (this.routineSearchTicks > 0) {
             this.routineSearchTicks = Math.max(0, this.routineSearchTicks - Math.max(0, tickDiff));
         }
+        this.validateRoutinePoiAssociation();
         int schedulePhase = this.getRoutineSchedulePhase();
         if (schedulePhase != this.routineSchedulePhase) {
             this.routineSchedulePhase = schedulePhase;
