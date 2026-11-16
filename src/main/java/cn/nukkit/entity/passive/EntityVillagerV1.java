@@ -528,7 +528,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
      */
     private void updateRoutineTarget() {
         this.routineSearchTicks = 200;
-        if (this.jobSiteBlock != null && this.getProfession() != PROFESSION_GENERIC && this.recipes.isEmpty()) {
+        if (this.jobSiteBlock != null && this.getProfession() != PROFESSION_GENERIC) {
             int jobX = this.jobSiteBlock.getFloorX();
             int jobY = this.jobSiteBlock.getFloorY();
             int jobZ = this.jobSiteBlock.getFloorZ();
@@ -720,9 +720,11 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             int localX = x & 0x0f;
             int localZ = z & 0x0f;
             int support = chunk.getBlockId(localX, poiY - 1, localZ);
-            int feet = chunk.getBlockId(localX, poiY, localZ);
-            int head = chunk.getBlockId(localX, poiY + 1, localZ);
-            if (Block.isBlockSolidById(support) && feet == Block.AIR && head == Block.AIR) {
+            Block feet = this.level.getBlock(chunk, x, poiY, z, false);
+            Block head = this.level.getBlock(chunk, x, poiY + 1, z, false);
+            // Flowers, grass and other non-colliding blocks should not prevent a POI
+            // from having a valid standing position.
+            if (Block.isBlockSolidById(support) && feet.canPassThrough() && head.canPassThrough()) {
                 return new Vector3(x + 0.5, poiY, z + 0.5);
             }
         }
@@ -941,7 +943,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     }
 
     private boolean isFarmerWorkTime() {
-        long time = this.level.getTime() % 24000;
+        long time = Math.floorMod((long) this.level.getTime(), 24000L);
         return !this.level.isRaining() && time >= 2000 && time < 9000;
     }
 
