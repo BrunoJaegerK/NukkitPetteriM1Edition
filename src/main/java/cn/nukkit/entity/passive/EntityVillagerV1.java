@@ -190,7 +190,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             case PROFESSION_LIBRARIAN: case PROFESSION_CARTOGRAPHER: return 1;
             case PROFESSION_PRIEST: return 2;
             case PROFESSION_BLACKSMITH: case PROFESSION_ARMORER: case PROFESSION_WEAPONSMITH: case PROFESSION_TOOLSMITH: return 3;
-            case PROFESSION_BUTCHER: case PROFESSION_LEATHERWORKER: return 4;
+            case PROFESSION_BUTCHER: case PROFESSION_LEATHERWORKER: case PROFESSION_MASON: return 4;
             default: return 5;
         }
     }
@@ -841,7 +841,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     @Override
     public boolean entityBaseTick(int tickDiff) {
         boolean updated = super.entityBaseTick(tickDiff);
-        if (this.foodPoints >= 12 && this.willing && !this.isBaby() && !this.isInLove() && !this.isInLoveCooldown()) {
+        if (this.getServer().getMobAiEnabled() && this.foodPoints >= 12 && this.willing
+                && !this.isBaby() && !this.isInLove() && !this.isInLoveCooldown()) {
             this.foodPoints = 0;
             this.setInLove();
             this.namedTag.putInt("FoodPoints", this.foodPoints);
