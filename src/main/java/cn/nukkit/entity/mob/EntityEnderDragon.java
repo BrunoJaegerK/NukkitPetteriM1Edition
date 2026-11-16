@@ -28,6 +28,9 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
     private double homeY;
     private double homeZ;
     private Vector3 orbitTarget;
+    private Player combatTarget;
+    private int flightPhaseTicks;
+    private boolean chargingPass;
 
     public EntityEnderDragon(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -43,17 +46,17 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
 
     @Override
     public float getWidth() {
-        return 16f;
+        return 13f;
     }
 
     @Override
     public float getHeight() {
-        return 8f;
+        return 4f;
     }
 
     @Override
     public double getSpeed() {
-        return 3;
+        return 4;
     }
 
     @Override
@@ -83,28 +86,88 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
         this.namedTag.putDouble("DragonHomeZ", this.homeZ);
     }
 
+    /**
+     * The Bedrock Ender Dragon has no block collision. Its flight controller must
+     * not be stopped by terrain or pillars, unlike ordinary flying mobs.
+     */
     @Override
-    protected void checkTarget() {
-        super.checkTarget();
-        if (this.target instanceof Entity) {
-            this.orbitTarget = null;
-            return;
+    public boolean move(double dx, double dy, double dz) {
+        if (dy < -10 || dy > 10 || (dx == 0 && dy == 0 && dz == 0)) {
+            return false;
         }
 
-        if (this.orbitTarget == null || this.distanceSquared(this.orbitTarget) <= 144) {
+        this.blocksAround = null;
+        double movX = dx * this.moveMultiplier;
+        double movY = dy;
+        double movZ = dz * this.moveMultiplier;
+        this.setComponents(this.x + dx, this.y + dy, this.z + dz);
+        this.checkChunks();
+        this.checkGroundState(movX, movY, movZ, dx, dy, dz);
+        this.updateFallState(this.onGround);
+        return true;
+    }
+
+    @Override
+    protected void checkTarget() {
+        // Let the shared target selector choose valid players, but keep the dragon's
+        // movement target separate so it circles/strafe-flies instead of walking
+        // directly into the player like an ordinary flying mob.
+        super.checkTarget();
+        if (this.target instanceof Player) {
+            Player selectedTarget = (Player) this.target;
+            if (this.combatTarget != selectedTarget) {
+                this.combatTarget = selectedTarget;
+                this.orbitTarget = null;
+                this.flightPhaseTicks = 0;
+            }
+        }
+
+        if (this.combatTarget != null && (this.combatTarget.closed || !this.combatTarget.isAlive()
+                || !this.combatTarget.spawned || !(this.combatTarget.isSurvival() || this.combatTarget.isAdventure())
+                || this.distanceSquared(this.combatTarget) > 4096)) {
+            this.combatTarget = null;
+            this.orbitTarget = null;
+            this.flightPhaseTicks = 0;
+        }
+
+        if (this.orbitTarget == null || this.flightPhaseTicks <= 0 || this.distanceSquared(this.orbitTarget) <= 144) {
             double angle = Utils.rand(0, 359) * Math.PI / 180.0;
-            double radius = Utils.rand(24, 40);
-            this.orbitTarget = new Vector3(this.homeX + Math.cos(angle) * radius,
-                    this.homeY + Utils.rand(-6, 10), this.homeZ + Math.sin(angle) * radius);
-            this.moveTime = 120;
+            double radius;
+            double centerX;
+            double centerY;
+            double centerZ;
+
+            if (this.combatTarget != null) {
+                // Alternate wide strafing arcs with lower, closer charge passes.
+                this.chargingPass = Utils.rand(1, 4) == 1;
+                radius = this.chargingPass ? Utils.rand(4, 10) : Utils.rand(18, 30);
+                centerX = this.combatTarget.x;
+                centerY = this.combatTarget.y + (this.chargingPass ? Utils.rand(1, 4) : Utils.rand(8, 18));
+                centerZ = this.combatTarget.z;
+                this.flightPhaseTicks = this.chargingPass ? Utils.rand(30, 50) : Utils.rand(60, 100);
+            } else {
+                // No player in range: patrol around the dragon's saved home point.
+                this.chargingPass = false;
+                radius = Utils.rand(24, 40);
+                centerX = this.homeX;
+                centerY = this.homeY + Utils.rand(-6, 10);
+                centerZ = this.homeZ;
+                this.flightPhaseTicks = Utils.rand(80, 140);
+            }
+
+            this.orbitTarget = new Vector3(centerX + Math.cos(angle) * radius,
+                    centerY, centerZ + Math.sin(angle) * radius);
+            this.moveTime = this.flightPhaseTicks;
             this.stayTime = 0;
         }
+
+        this.followTarget = null;
         this.target = this.orbitTarget;
     }
 
     @Override
     public boolean targetOption(EntityCreature creature, double distance) {
-        if (!(creature instanceof Player) || this.server.getDifficulty() == 0) {
+        if (!(creature instanceof Player)) {
             return false;
         }
         Player player = (Player) creature;
@@ -133,17 +196,19 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
         this.lastUpdate = currentTick;
         this.entityBaseTick(tickDiff);
 
-        Vector3 activeTarget = null;
         if (this.getServer().getMobAiEnabled()) {
-            activeTarget = this.updateMove(tickDiff);
-            healFromNearbyCrystal(tickDiff);
-            if (activeTarget instanceof Entity && !this.closed) {
-                this.attackEntity((Entity) activeTarget);
+            this.flightPhaseTicks = Math.max(0, this.flightPhaseTicks - tickDiff);
+            this.updateMove(tickDiff);
+            this.healFromNearbyCrystal(tickDiff);
+            if (this.combatTarget != null && !this.combatTarget.closed && this.combatTarget.isAlive() && !this.closed) {
+                this.attackEntity(this.combatTarget);
             }
         } else {
             this.motionX = this.motionY = this.motionZ = 0;
             this.target = null;
             this.followTarget = null;
+            this.combatTarget = null;
+            this.updateMovement();
         }
         return true;
     }
@@ -228,15 +293,15 @@ public class EntityEnderDragon extends EntityFlyingMob implements EntityBoss {
         } else if (this.attackDelay > 20 && distance <= 64) {
             this.attackDelay = 0;
             HashMap<EntityDamageEvent.DamageModifier, Float> damage = new HashMap<>();
-            damage.put(EntityDamageEvent.DamageModifier.BASE, (float) this.getDamage());
+            float baseDamage = (float) this.getDamage();
+            damage.put(EntityDamageEvent.DamageModifier.BASE, baseDamage);
             if (player instanceof Player) {
                 float armorPoints = 0;
                 for (Item armor : ((Player) player).getInventory().getArmorContents()) {
                     armorPoints += this.getArmorPoints(armor.getId());
                 }
                 damage.put(EntityDamageEvent.DamageModifier.ARMOR,
-                        (float) (damage.get(EntityDamageEvent.DamageModifier.BASE)
-                                - Math.floor(this.getDamage() * armorPoints * 0.04)));
+                        (float) -Math.floor(baseDamage * armorPoints * 0.04));
             }
             player.attack(new EntityDamageByEntityEvent(this, player,
                     EntityDamageEvent.DamageCause.ENTITY_ATTACK, damage));

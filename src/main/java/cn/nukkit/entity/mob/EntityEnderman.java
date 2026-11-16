@@ -5,8 +5,10 @@ import cn.nukkit.block.Block;
 import cn.nukkit.block.BlockID;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
+import cn.nukkit.entity.mob.EntityEndermite;
 import cn.nukkit.entity.data.IntEntityData;
 import cn.nukkit.event.entity.EndermanBlockPickUpEvent;
+import cn.nukkit.event.entity.EndermanBlockPlaceEvent;
 import cn.nukkit.event.entity.EntityDamageByEntityEvent;
 import cn.nukkit.event.entity.EntityDamageEvent;
 import cn.nukkit.event.player.PlayerTeleportEvent;
@@ -17,6 +19,7 @@ import cn.nukkit.level.Level;
 import cn.nukkit.level.Location;
 import cn.nukkit.level.biome.Biome;
 import cn.nukkit.level.format.FullChunk;
+import cn.nukkit.math.AxisAlignedBB;
 import cn.nukkit.math.Vector3;
 import cn.nukkit.nbt.NBTIO;
 import cn.nukkit.nbt.tag.CompoundTag;
@@ -35,11 +38,22 @@ public class EntityEnderman extends EntityWalkingMob {
 
     private boolean teleported;
 
+    private int chaseTeleportTicks;
+
     private boolean pickupBlocks;
 
     private Item block;
 
-    private static final IntOpenHashSet canPickup = new IntOpenHashSet(new int[]{BlockID.DIRT, BlockID.GRASS, BlockID.PODZOL, BlockID.MYCELIUM, BlockID.COBBLESTONE, BlockID.SAND, BlockID.GRAVEL});
+    private static final IntOpenHashSet canPickup = new IntOpenHashSet(new int[]{
+            BlockID.DIRT, BlockID.GRASS, BlockID.PODZOL, BlockID.MYCELIUM,
+            BlockID.SAND, BlockID.GRAVEL, BlockID.TALL_GRASS, BlockID.DEAD_BUSH,
+            BlockID.DANDELION, BlockID.FLOWER, BlockID.BROWN_MUSHROOM, BlockID.RED_MUSHROOM,
+            BlockID.TNT, BlockID.CACTUS, BlockID.CLAY_BLOCK, BlockID.PUMPKIN,
+            BlockID.LIT_PUMPKIN, BlockID.BROWN_MUSHROOM_BLOCK, BlockID.RED_MUSHROOM_BLOCK,
+            BlockID.MELON_BLOCK, BlockID.CARVED_PUMPKIN, BlockID.ROOTED_DIRT, BlockID.MOSS_BLOCK,
+            BlockID.MUD, BlockID.MUDDY_MANGROVE_ROOTS, BlockID.CRIMSON_ROOTS, BlockID.WARPED_ROOTS,
+            BlockID.CRIMSON_FUNGUS, BlockID.WARPED_FUNGUS, BlockID.CRIMSON_NYLIUM, BlockID.WARPED_NYLIUM
+    });
 
     public EntityEnderman(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -78,6 +92,9 @@ public class EntityEnderman extends EntityWalkingMob {
         }
 
         this.pickupBlocks = !server.suomiCraftPEMode() && this.level.getGameRules().getBoolean(GameRule.MOB_GRIEFING);
+        if (this.namedTag.contains("AngerTicks")) {
+            this.setAngry(Math.max(0, this.namedTag.getInt("AngerTicks")));
+        }
     }
 
     @Override
@@ -103,22 +120,23 @@ public class EntityEnderman extends EntityWalkingMob {
     @Override
     public boolean attack(EntityDamageEvent ev) {
         if (ev.getCause() == EntityDamageEvent.DamageCause.PROJECTILE) {
-            setAngry(2400);
+            setAngry(500);
             ev.setCancelled(true);
             this.teleport();
             return false;
         }
 
-        if (super.attack(ev) && !ev.isCancelled()) {
+        boolean damaged = super.attack(ev);
+        if (damaged && !ev.isCancelled()) {
             if (ev.getCause() == EntityDamageEvent.DamageCause.ENTITY_ATTACK) {
-                setAngry(2400);
+                setAngry(500);
             }
 
             if (!this.teleported && Utils.rand(1, 10) == 1) {
                 this.teleport();
             }
         }
-        return true;
+        return damaged;
     }
 
     @Override
@@ -146,31 +164,147 @@ public class EntityEnderman extends EntityWalkingMob {
         }
 
         this.teleported = false;
+        this.pickupBlocks = !server.suomiCraftPEMode()
+                && this.level.getGameRules().getBoolean(GameRule.MOB_GRIEFING);
 
         if (this.angry > 0) {
-            if (this.angry == 1) {
-                this.setAngry(0); // Reset flag
-            } else {
-                this.angry--;
-            }
+            this.setAngry(Math.max(0, this.angry - Math.max(1, tickDiff)));
         }
 
         int b = level.getBlockIdAt(chunk, this.getFloorX(), this.getFloorY(), this.getFloorZ());
-        if (Block.isWater(b) || (this.level.isRaining() && Utils.rand() && this.canSeeSky() && Biome.getBiome(level.getBiomeId((int) x, (int) z)).canRain())) {
+        if (this.isOnFire()) {
+            this.teleport();
+        } else if (Block.isWater(b) || (this.level.isRaining() && Utils.rand() && this.canSeeSky() && Biome.getBiome(level.getBiomeId((int) x, (int) z)).canRain())) {
             this.attack(new EntityDamageEvent(this, EntityDamageEvent.DamageCause.DROWNING, 1));
             this.setAngry(0);
             this.teleport();
-        } else if (Utils.rand(0, 500) == 20) {
-            this.setAngry(0);
-            this.teleport();
-        } else if (this.pickupBlocks && block == null && this.age != 0 && this.onGround && this.age % 300 == 0 && Utils.rand(0, 20) == 5) {
-            Block block = level.getBlock(chunk, this.getFloorX(), this.getFloorY() - 1, this.getFloorZ(), false);
-            if (canPickup.contains(block.getId())) {
-                this.pickupBlock(block);
+        } else {
+            Player chaseTarget = this.target instanceof Player ? (Player) this.target
+                    : this.followTarget instanceof Player ? (Player) this.followTarget : null;
+            this.chaseTeleportTicks = Math.max(0, this.chaseTeleportTicks - Math.max(0, tickDiff));
+            if (this.isAngry() && chaseTarget != null && this.distanceSquared(chaseTarget) >= 256
+                    && this.chaseTeleportTicks <= 0) {
+                if (this.teleportTowards(chaseTarget)) {
+                    this.chaseTeleportTicks = Utils.rand(30, 40);
+                } else {
+                    this.chaseTeleportTicks = 10;
+                }
+            } else if (!this.isAngry() && Utils.rand(0, 500) == 20) {
+                this.teleport();
+            }
+
+            if (!this.teleported && this.pickupBlocks) {
+                if (this.block == null && Utils.rand(0, 19) == 0) {
+                    this.tryPickupNearbyBlock();
+                } else if (this.block != null && Utils.rand(0, 1999) == 0) {
+                    this.tryPlaceHeldBlock();
+                }
             }
         }
 
         return super.entityBaseTick(tickDiff);
+    }
+
+    private void tryPickupNearbyBlock() {
+        int x = this.getFloorX() + Utils.rand(-2, 1);
+        int y = this.getFloorY() + Utils.rand(-1, 1);
+        int z = this.getFloorZ() + Utils.rand(-2, 1);
+        FullChunk candidateChunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+        if (candidateChunk == null || !candidateChunk.isGenerated()) {
+            return;
+        }
+
+        Block candidate = this.level.getBlock(candidateChunk, x, y, z, false);
+        if (!canPickup.contains(candidate.getId()) || !this.hasLineOfSightToBlock(candidate)) {
+            return;
+        }
+        this.pickupBlock(candidate);
+    }
+
+    private boolean hasLineOfSightToBlock(Block target) {
+        Vector3 start = this.add(0, this.getEyeHeight(), 0);
+        Vector3 end = new Vector3(target.x + 0.5, target.y + 0.5, target.z + 0.5);
+        double dx = end.x - start.x;
+        double dy = end.y - start.y;
+        double dz = end.z - start.z;
+        double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        int steps = Math.max(1, (int) Math.ceil(distance * 4));
+
+        for (int step = 1; step <= steps; step++) {
+            double progress = step / (double) steps;
+            int x = (int) Math.floor(start.x + dx * progress);
+            int y = (int) Math.floor(start.y + dy * progress);
+            int z = (int) Math.floor(start.z + dz * progress);
+            if (x == target.getFloorX() && y == target.getFloorY() && z == target.getFloorZ()) {
+                return true;
+            }
+
+            FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+            if (chunk == null || !chunk.isGenerated() || chunk.getBlockId(x & 0x0f, y, z & 0x0f) != Block.AIR) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void tryPlaceHeldBlock() {
+        if (this.block == null) {
+            return;
+        }
+
+        int x = this.getFloorX() + Utils.rand(-1, 0);
+        int y = this.getFloorY() + Utils.rand(-1, 0);
+        int z = this.getFloorZ() + Utils.rand(-1, 0);
+        if (y <= this.level.getMinBlockY() || y > this.level.getMaxBlockY()) {
+            return;
+        }
+
+        FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+        if (chunk == null || !chunk.isGenerated()) {
+            return;
+        }
+
+        int localX = x & 0x0f;
+        int localZ = z & 0x0f;
+        if (chunk.getBlockId(localX, y, localZ) != Block.AIR) {
+            return;
+        }
+
+        int supportId = chunk.getBlockId(localX, y - 1, localZ);
+        if (!Block.isBlockSolidById(supportId) || supportId == BlockID.BEDROCK) {
+            return;
+        }
+
+        Block placedBlock = Block.get(this.block.getId(), this.block.getDamage(),
+                new Location(x, y, z, this.level));
+        if (!placedBlock.canBePlaced()) {
+            return;
+        }
+
+        AxisAlignedBB box = placedBlock.getBoundingBox();
+        if (box != null) {
+            for (Entity entity : this.level.getNearbyEntities(box, this)) {
+                if (entity.isAlive() && entity.getBoundingBox().intersectsWith(box)) {
+                    return;
+                }
+            }
+        }
+
+        EndermanBlockPlaceEvent event = new EndermanBlockPlaceEvent(this, placedBlock);
+        this.getServer().getPluginManager().callEvent(event);
+        if (event.isCancelled()) {
+            return;
+        }
+
+        // Revalidate after plugins have had a chance to inspect the placement.
+        if (this.level.getBlockIdAt(chunk, x, y, z) != Block.AIR
+                || !Block.isBlockSolidById(this.level.getBlockIdAt(chunk, x, y - 1, z))
+                || !this.level.setBlock(placedBlock, placedBlock, true, true)) {
+            return;
+        }
+
+        this.block = null;
+        this.setDataProperty(new IntEntityData(DATA_ENDERMAN_HELD_RUNTIME_ID, 0));
     }
 
     private void pickupBlock(Block block) {
@@ -194,32 +328,92 @@ public class EntityEnderman extends EntityWalkingMob {
      * Teleport enderman to random location in 32x32 range
      */
     public void teleport() {
-        Location to = this.getSafeTpLocation();
-        if (to != null) {
+        this.teleportTo(this.getSafeTpLocation());
+    }
+
+    private boolean teleportTo(Location destination) {
+        if (destination == null) {
+            return false;
+        }
+        this.level.addLevelEvent(this, LevelEventPacket.EVENT_SOUND_ENDERMAN_TELEPORT);
+        if (this.teleport(destination, PlayerTeleportEvent.TeleportCause.UNKNOWN)) {
             this.level.addLevelEvent(this, LevelEventPacket.EVENT_SOUND_ENDERMAN_TELEPORT);
-            if (this.teleport(to, PlayerTeleportEvent.TeleportCause.UNKNOWN)) {
-                this.level.addLevelEvent(this, LevelEventPacket.EVENT_SOUND_ENDERMAN_TELEPORT);
-                this.teleported = true;
+            this.teleported = true;
+            return true;
+        }
+        return false;
+    }
+
+    private boolean teleportTowards(Player target) {
+        double currentDistance = this.distanceSquared(target);
+        Location destination = this.getSafeTpLocationNear(target, currentDistance - 64);
+        return this.teleportTo(destination);
+    }
+
+    private Location getSafeTpLocationNear(Player target, double maxDistanceSquared) {
+        for (int attempt = 0; attempt < 32; attempt++) {
+            int targetX = (int) Math.floor(target.x + Utils.rand(-19, 19));
+            int targetZ = (int) Math.floor(target.z + Utils.rand(-19, 19));
+            int startY = (int) Math.floor(target.y + Utils.rand(-22, 22));
+            FullChunk candidateChunk = this.level.getChunk(targetX >> 4, targetZ >> 4, false);
+            if (candidateChunk == null || !candidateChunk.isGenerated()) {
+                continue;
+            }
+
+            int localX = targetX & 0x0f;
+            int localZ = targetZ & 0x0f;
+            int previousY1 = -1000;
+            int previousY2 = -1000;
+            int previousY3 = -1000;
+            for (int y = Math.min(this.level.getMaxBlockY(), startY); y >= this.level.getMinBlockY(); y--) {
+                if (previousY1 > -1000 && previousY2 > -1000 && previousY3 > -1000
+                        && Block.isBlockSolidById(candidateChunk.getBlockId(localX, y, localZ))
+                        && candidateChunk.getBlockId(localX, previousY1, localZ) == Block.AIR
+                        && candidateChunk.getBlockId(localX, previousY2, localZ) == Block.AIR
+                        && candidateChunk.getBlockId(localX, previousY3, localZ) == Block.AIR) {
+                    Location destination = new Location(targetX + 0.5, previousY1 + 0.1,
+                            targetZ + 0.5, this.level);
+                    double dx = destination.x - target.x;
+                    double dy = destination.y - target.y;
+                    double dz = destination.z - target.z;
+                    double distance = dx * dx + dy * dy + dz * dz;
+                    if (distance >= 16 && distance < maxDistanceSquared) {
+                        return destination;
+                    }
+                    break;
+                }
+                previousY3 = previousY2;
+                previousY2 = previousY1;
+                previousY1 = y;
             }
         }
+        return null;
     }
 
     private Location getSafeTpLocation() {
-        double dx = this.x + Utils.rand(-16, 16);
-        double dz = this.z + Utils.rand(-16, 16);
-        Vector3 pos = new Vector3(Math.floor(dx), (int) Math.floor(this.y + 0.1) + 16, Math.floor(dz));
-        FullChunk chunk = this.level.getChunk((int) pos.x >> 4, (int) pos.z >> 4, false);
-        int x = (int) pos.x & 0x0f;
-        int z = (int) pos.z & 0x0f;
-        int previousY1 = -1000;
-        int previousY2 = -1000;
-        if (chunk != null && chunk.isGenerated()) {
+        for (int attempt = 0; attempt < 16; attempt++) {
+            double dx = this.x + Utils.rand(-16, 16);
+            double dz = this.z + Utils.rand(-16, 16);
+            Vector3 pos = new Vector3(Math.floor(dx), (int) Math.floor(this.y + 0.1) + 16, Math.floor(dz));
+            FullChunk chunk = this.level.getChunk((int) pos.x >> 4, (int) pos.z >> 4, false);
+            if (chunk == null || !chunk.isGenerated()) {
+                continue;
+            }
+
+            int x = (int) pos.x & 0x0f;
+            int z = (int) pos.z & 0x0f;
+            int previousY1 = -1000;
+            int previousY2 = -1000;
+            int previousY3 = -1000;
             for (int y = Math.min(this.level.getMaxBlockY(), (int) pos.y); y >= this.level.getMinBlockY(); y--) {
-                if (previousY1 > -1000 && previousY2 > -1000) {
-                    if (Block.isBlockSolidById(chunk.getBlockId(x, y, z)) && chunk.getBlockId(x, previousY1, z) == 0 && chunk.getBlockId(x, previousY2, z) == 0) {
-                        return new Location(pos.x + 0.5, previousY1 + 0.1, pos.z + 0.5, this.level);
-                    }
+                if (previousY1 > -1000 && previousY2 > -1000 && previousY3 > -1000
+                        && Block.isBlockSolidById(chunk.getBlockId(x, y, z))
+                        && chunk.getBlockId(x, previousY1, z) == Block.AIR
+                        && chunk.getBlockId(x, previousY2, z) == Block.AIR
+                        && chunk.getBlockId(x, previousY3, z) == Block.AIR) {
+                    return new Location(pos.x + 0.5, previousY1 + 0.1, pos.z + 0.5, this.level);
                 }
+                previousY3 = previousY2;
                 previousY2 = previousY1;
                 previousY1 = y;
             }
@@ -249,16 +443,19 @@ public class EntityEnderman extends EntityWalkingMob {
 
     @Override
     public boolean targetOption(EntityCreature creature, double distance) {
-        if (!isAngry()) return false;
-        if (creature instanceof Player) {
-            Player player = (Player) creature;
-            return !player.closed && player.spawned && player.isAlive() && (player.isSurvival() || player.isAdventure()) && distance <= 1024; // 32 blocks
+        if (creature instanceof EntityEndermite) {
+            return !creature.closed && creature.isAlive() && distance <= 4096;
         }
-        return creature.isAlive() && !creature.closed && distance <= 1024;
+        if (!isAngry() || !(creature instanceof Player)) {
+            return false;
+        }
+        Player player = (Player) creature;
+        return !player.closed && player.spawned && player.isAlive()
+                && (player.isSurvival() || player.isAdventure()) && distance <= 4096; // 64 blocks
     }
 
     public void stareToAngry() {
-        setAngry(2400);
+        setAngry(500);
     }
 
     @Override
@@ -266,6 +463,7 @@ public class EntityEnderman extends EntityWalkingMob {
         super.saveNBT();
 
         this.saveBlock();
+        this.namedTag.putInt("AngerTicks", this.angry);
     }
 
     private void saveBlock() {

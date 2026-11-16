@@ -1,6 +1,7 @@
 package cn.nukkit.entity.projectile;
 
 import cn.nukkit.entity.Entity;
+import cn.nukkit.entity.mob.EntityShulker;
 import cn.nukkit.event.entity.EntityDamageEvent;
 import cn.nukkit.event.entity.EntityPotionEffectEvent;
 import cn.nukkit.level.Sound;
@@ -56,6 +57,13 @@ public class EntityShulkerBullet extends EntityProjectile {
 
     @Override
     protected double getBaseDamage() {
+        int difficulty = this.server.getDifficulty();
+        if (difficulty == 1) {
+            return 3;
+        }
+        if (difficulty >= 3) {
+            return 6;
+        }
         return 4;
     }
 
@@ -90,7 +98,7 @@ public class EntityShulkerBullet extends EntityProjectile {
             double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
             if (dist > 0.1) {
-                final double speed = 0.15;
+                final double speed = 0.5;
                 double nx = dx / dist;
                 double ny = dy / dist;
                 double nz = dz / dist;
@@ -164,7 +172,9 @@ public class EntityShulkerBullet extends EntityProjectile {
     public void onCollideWithEntity(Entity entity) {
         super.onCollideWithEntity(entity);
         this.level.addSound(this, Sound.MOB_SHULKER_BULLET_HIT);
-        entity.addEffect(Effect.getEffect(Effect.LEVITATION).setDuration(200), EntityPotionEffectEvent.Cause.ATTACK);
+        if (entity.isAlive() && !(entity instanceof EntityShulker)) {
+            entity.addEffect(Effect.getEffect(Effect.LEVITATION).setDuration(200), EntityPotionEffectEvent.Cause.ATTACK);
+        }
     }
 
     @Override

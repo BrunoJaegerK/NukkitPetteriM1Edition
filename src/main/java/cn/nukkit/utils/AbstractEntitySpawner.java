@@ -10,7 +10,6 @@ import cn.nukkit.level.Level;
 import cn.nukkit.level.Position;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.math.FastMathLite;
-import cn.nukkit.math.NukkitMath;
 
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -58,11 +57,18 @@ public abstract class AbstractEntitySpawner implements EntitySpawner {
             } else {
                 ThreadLocalRandom random = ThreadLocalRandom.current();
 
-                double r = 24.0 + 20.0 * random.nextDouble(); // Between min 24 and max 44 blocks from player
-                double theta = 6.283185307179586 * random.nextDouble(); // 2pi
+                // Vanilla-style spawning ring: never spawn inside the 24-block safe radius,
+                // and allow attempts throughout the 128-block player spawning area.
+                // Sampling the squared radius keeps candidates uniformly distributed
+                // over the ring instead of clustering them near its inner edge.
+                double minRadiusSquared = 24.0 * 24.0;
+                double maxRadiusSquared = 128.0 * 128.0;
+                double radius = Math.sqrt(minRadiusSquared
+                        + random.nextDouble() * (maxRadiusSquared - minRadiusSquared));
+                double theta = 2.0 * Math.PI * random.nextDouble();
 
-                pos.x += NukkitMath.ceilDouble(r * FastMathLite.cos(theta));
-                pos.z += NukkitMath.ceilDouble(r * FastMathLite.sin(theta));
+                pos.x += Math.floor(radius * FastMathLite.cos(theta));
+                pos.z += Math.floor(radius * FastMathLite.sin(theta));
 
                 FullChunk chunk = level.getChunkIfLoaded((int) pos.x >> 4, (int) pos.z >> 4);
                 if (chunk == null || !chunk.isGenerated() || !chunk.isPopulated()) {

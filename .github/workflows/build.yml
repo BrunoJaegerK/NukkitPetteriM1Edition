@@ -5,6 +5,15 @@ on:
   push:
     branches:
       - release
+      - 'feature/**'
+  pull_request:
+    branches:
+      - release
+      - 'feature/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
