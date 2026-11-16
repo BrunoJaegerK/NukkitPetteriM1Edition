@@ -971,7 +971,7 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
         }
 
         // Tick Weather
-        if (this.getDimension() != DIMENSION_NETHER && this.getDimension() != DIMENSION_THE_END && this.gameRules.getBoolean(GameRule.DO_WEATHER_CYCLE) && this.randomTickingEnabled()) {
+        if (this.getDimension() != DIMENSION_NETHER && this.getDimension() != DIMENSION_THE_END && this.gameRules.getBoolean(GameRule.DO_WEATHER_CYCLE)) {
             this.rainTime--;
             if (this.rainTime <= 0) {
                 if (!this.setRaining(!this.raining)) {
@@ -1109,10 +1109,6 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
 
     private void performThunder(long index, FullChunk chunk) {
         if (ThreadLocalRandom.current().nextInt(100000) < 1) {
-            if (areNeighboringChunksLoaded(index)) {
-                return;
-            }
-
             int LCG = this.getUpdateLCG() >> 2;
 
             int chunkX = chunk.getX() << 4;
@@ -1120,7 +1116,8 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
             Vector3 vector = this.adjustPosToNearbyEntity(new Vector3(chunkX + (LCG & 0xf), 0, chunkZ + (LCG >> 8 & 0xf)));
 
             Biome biome = Biome.getBiome(this.getBiomeId(vector.getFloorX(), vector.getFloorZ()));
-            if (!biome.canRain()) {
+            // Lightning can occur in both rainy and snowy overworld biomes.
+            if (!biome.canRain() && !biome.isFreezing()) {
                 return;
             }
 
@@ -4516,6 +4513,16 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
     }
 
     public boolean setRaining(boolean raining) {
+        if (this.raining == raining) {
+            return true;
+        }
+
+        // Thunder is a rain state in Bedrock. Stop it before ending precipitation
+        // so clients and the stored world state cannot disagree.
+        if (!raining && this.thundering && !setThundering(false)) {
+            return false;
+        }
+
         WeatherChangeEvent ev = new WeatherChangeEvent(this, raining);
         this.server.getPluginManager().callEvent(ev);
 
@@ -4526,8 +4533,6 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
         this.raining = raining;
 
         LevelEventPacket pk = new LevelEventPacket();
-        // These numbers are from Minecraft
-
         if (raining) {
             pk.evid = LevelEventPacket.EVENT_START_RAIN;
             int time = ThreadLocalRandom.current().nextInt(12000) + 12000;
@@ -4539,7 +4544,6 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
         }
 
         Server.broadcastPacket(this.getPlayersList(), pk);
-
         return true;
     }
 
@@ -4556,6 +4560,15 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
     }
 
     public boolean setThundering(boolean thundering) {
+        if (this.thundering == thundering) {
+            return true;
+        }
+
+        // Do not enter a thunder state if the rain transition was cancelled by a plugin.
+        if (thundering && !this.raining && !setRaining(true)) {
+            return false;
+        }
+
         ThunderChangeEvent ev = new ThunderChangeEvent(this, thundering);
         this.server.getPluginManager().callEvent(ev);
 
@@ -4563,14 +4576,9 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
             return false;
         }
 
-        if (thundering && !raining) {
-            setRaining(true);
-        }
-
         this.thundering = thundering;
 
         LevelEventPacket pk = new LevelEventPacket();
-        // These numbers are from Minecraft
         if (thundering) {
             pk.evid = LevelEventPacket.EVENT_START_THUNDER;
             int time = ThreadLocalRandom.current().nextInt(12000) + 3600;
@@ -4582,7 +4590,6 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
         }
 
         Server.broadcastPacket(this.getPlayersList(), pk);
-
         return true;
     }
 
