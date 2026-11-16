@@ -123,17 +123,24 @@ public class EntityZombie extends EntityWalkingMob implements EntitySmite, Entit
                 damage.put(EntityDamageEvent.DamageModifier.ARMOR,
                         (float) (damage.getOrDefault(EntityDamageEvent.DamageModifier.ARMOR, 0f) - Math.floor(damage.getOrDefault(EntityDamageEvent.DamageModifier.BASE, 1f) * points * 0.04)));
             }
-            target.attack(new EntityDamageByEntityEvent(this, target, EntityDamageEvent.DamageCause.ENTITY_ATTACK, damage));
+            boolean hit = target.attack(new EntityDamageByEntityEvent(this, target, EntityDamageEvent.DamageCause.ENTITY_ATTACK, damage));
             this.playAttack();
 
-            if (target instanceof EntityVillagerV1 && this.getServer().getDifficulty() > 1 && Utils.rand()) {
-                CreatureSpawnEvent cse = new CreatureSpawnEvent(EntityZombieVillagerV1.NETWORK_ID, this, CreatureSpawnEvent.SpawnReason.INFECTION);
-                level.getServer().getPluginManager().callEvent(cse);
+            // Vanilla infection happens only when a zombie actually kills a villager:
+            // 0% on Easy, 50% on Normal and 100% on Hard.
+            int difficulty = this.getServer().getDifficulty();
+            boolean infect = difficulty >= 3 || (difficulty == 2 && Utils.rand());
+            if (hit && infect && target instanceof EntityVillagerV1 && !target.isAlive()) {
+                Entity ent = Entity.createEntity("ZombieVillager", target.getChunk(), target.namedTag.copy());
+                if (ent != null) {
+                    CreatureSpawnEvent cse = new CreatureSpawnEvent(ent.getNetworkId(), target,
+                            ent.namedTag, CreatureSpawnEvent.SpawnReason.INFECTION);
+                    level.getServer().getPluginManager().callEvent(cse);
 
-                if (!cse.isCancelled()) {
-                    Entity ent = Entity.createEntity("ZombieVillager", this);
-                    if (ent != null) {
-                        ent.setHealth(target.getHealth());
+                    if (cse.isCancelled()) {
+                        ent.close();
+                    } else {
+                        ent.setHealth(ent.getMaxHealth());
                         target.close();
                         ent.spawnToAll();
                     }
