@@ -157,6 +157,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
     public void setProfession(int profession) {
         this.namedTag.putInt("Profession", profession);
+        this.jobSite = null;
         this.updateProfessionMetadata();
         this.routineSearchTicks = 0;
         this.routineTarget = null;
@@ -208,6 +209,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             case PROFESSION_BUTCHER: return 10;
             case PROFESSION_LEATHERWORKER: return 11;
             case PROFESSION_MASON: return 12;
+            case PROFESSION_BLACKSMITH: return 7;
+            case PROFESSION_GENERIC: return 13;
             default: return 0;
         }
     }
@@ -296,7 +299,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 this.updateRoutineTarget();
             }
             if (this.routineTarget != null) {
-                if (this.getProfession() == PROFESSION_GENERIC
+                if (this.getProfession() == PROFESSION_GENERIC && this.recipes.isEmpty()
                         && this.distanceSquared(this.routineTarget) <= 2.25
                         && this.tryAcquireProfessionAtRoutineTarget()) {
                     this.routineTarget = null;
@@ -398,6 +401,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         int centerX = this.routineTarget.getFloorX();
         int centerY = this.routineTarget.getFloorY();
         int centerZ = this.routineTarget.getFloorZ();
+        int selectedProfession = PROFESSION_GENERIC;
+        double nearestSite = Double.MAX_VALUE;
         for (int y = centerY - 1; y <= centerY + 1; y++) {
             for (int z = centerZ - 2; z <= centerZ + 2; z++) {
                 for (int x = centerX - 2; x <= centerX + 2; x++) {
@@ -410,14 +415,24 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                     if (profession == PROFESSION_GENERIC) {
                         continue;
                     }
-                    Vector3 claimedStand = this.routineTarget;
-                    this.setProfession(profession);
-                    this.jobSite = new Vector3(claimedStand.x, claimedStand.y, claimedStand.z);
-                    return true;
+                    double dx = x + 0.5 - this.routineTarget.x;
+                    double dy = y - this.routineTarget.y;
+                    double dz = z + 0.5 - this.routineTarget.z;
+                    double distance = dx * dx + dy * dy + dz * dz;
+                    if (distance < nearestSite) {
+                        nearestSite = distance;
+                        selectedProfession = profession;
+                    }
                 }
             }
         }
-        return false;
+        if (selectedProfession == PROFESSION_GENERIC) {
+            return false;
+        }
+        Vector3 claimedStand = this.routineTarget;
+        this.setProfession(selectedProfession);
+        this.jobSite = new Vector3(claimedStand.x, claimedStand.y, claimedStand.z);
+        return true;
     }
 
     private int getProfessionForWorkstation(int blockId) {
@@ -504,11 +519,13 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                     wantedBlocks = new int[]{BlockID.SMOKER, BlockID.LIT_SMOKER};
                     break;
                 case PROFESSION_GENERIC:
-                    wantedBlocks = new int[]{BlockID.COMPOSTER, BlockID.BARREL, BlockID.LOOM,
-                            BlockID.FLETCHING_TABLE, BlockID.LECTERN, BlockID.CARTOGRAPHY_TABLE,
-                            BlockID.BREWING_STAND_BLOCK, BlockID.BLAST_FURNACE, BlockID.LIT_BLAST_FURNACE,
-                            BlockID.GRINDSTONE, BlockID.SMITHING_TABLE, BlockID.SMOKER, BlockID.LIT_SMOKER,
-                            BlockID.CAULDRON_BLOCK, BlockID.STONECUTTER, BlockID.STONECUTTER_BLOCK};
+                    if (this.recipes.isEmpty()) {
+                        wantedBlocks = new int[]{BlockID.COMPOSTER, BlockID.BARREL, BlockID.LOOM,
+                                BlockID.FLETCHING_TABLE, BlockID.LECTERN, BlockID.CARTOGRAPHY_TABLE,
+                                BlockID.BREWING_STAND_BLOCK, BlockID.BLAST_FURNACE, BlockID.LIT_BLAST_FURNACE,
+                                BlockID.GRINDSTONE, BlockID.SMITHING_TABLE, BlockID.SMOKER, BlockID.LIT_SMOKER,
+                                BlockID.CAULDRON_BLOCK, BlockID.STONECUTTER, BlockID.STONECUTTER_BLOCK};
+                    }
                     break;
                 default:
                     break;
@@ -606,17 +623,21 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             }
             EntityVillagerV1 villager = (EntityVillagerV1) entity;
             Vector3 reserved = villager.routineTarget;
-            if (reserved == null && villager.getProfession() != PROFESSION_GENERIC) {
-                reserved = villager.jobSite;
+            if (reserved != null) {
+                double dx = reserved.x - x;
+                double dy = reserved.y - y;
+                double dz = reserved.z - z;
+                if (dx * dx + dy * dy + dz * dz <= 1.1) {
+                    return true;
+                }
             }
-            if (reserved == null) {
-                continue;
-            }
-            double dx = reserved.x - x;
-            double dy = reserved.y - y;
-            double dz = reserved.z - z;
-            if (dx * dx + dy * dy + dz * dz <= 1.1) {
-                return true;
+            if (villager.getProfession() != PROFESSION_GENERIC && villager.jobSite != null) {
+                double dx = villager.jobSite.x - x;
+                double dy = villager.jobSite.y - y;
+                double dz = villager.jobSite.z - z;
+                if (dx * dx + dy * dy + dz * dz <= 1.1) {
+                    return true;
+                }
             }
         }
         return false;
