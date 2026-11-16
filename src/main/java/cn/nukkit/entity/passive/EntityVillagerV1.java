@@ -300,6 +300,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
         if (threat != null) {
             this.sleepingRoutine = false;
+            this.workingRoutine = false;
+            this.wakeFromRoutineSleep();
             this.setGenericFlag(DATA_FLAG_SLEEPING, false);
             double dx = this.x - threat.x;
             double dz = this.z - threat.z;
@@ -380,7 +382,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 this.openDoorToward(this.target);
                 return;
             }
-            this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
+            this.setGenericFlag(DATA_FLAG_SLEEPING, false);
         }
 
         super.checkTarget();
@@ -961,8 +963,24 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         if (this.routineSearchTicks > 0) {
             this.routineSearchTicks = Math.max(0, this.routineSearchTicks - Math.max(0, tickDiff));
         }
-        if (this.sleepingBedPosition != null && !this.isVillagerSleepTime()) {
-            this.wakeFromRoutineSleep();
+        if (this.sleepingBedPosition != null) {
+            int bedX = this.sleepingBedPosition.getFloorX();
+            int bedY = this.sleepingBedPosition.getFloorY();
+            int bedZ = this.sleepingBedPosition.getFloorZ();
+            FullChunk bedChunk = this.level.getChunkIfLoaded(bedX >> 4, bedZ >> 4);
+            boolean bedStillExists = bedChunk != null && bedChunk.isGenerated()
+                    && bedChunk.getBlockId(bedX & 0x0f, bedY, bedZ & 0x0f) == BlockID.BED_BLOCK;
+            if (!this.isVillagerSleepTime() || !bedStillExists) {
+                this.wakeFromRoutineSleep();
+            } else {
+                this.target = null;
+                this.followTarget = null;
+                this.motionX = 0;
+                this.motionY = 0;
+                this.motionZ = 0;
+                this.setGenericFlag(DATA_FLAG_SLEEPING, true);
+                this.stayTime = 200;
+            }
         }
         if (this.farmSearchTicks > 0) {
             this.farmSearchTicks = Math.max(0, this.farmSearchTicks - Math.max(0, tickDiff));
