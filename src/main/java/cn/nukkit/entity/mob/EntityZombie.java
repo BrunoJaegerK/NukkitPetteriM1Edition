@@ -125,28 +125,8 @@ public class EntityZombie extends EntityWalkingMob implements EntitySmite, Entit
             }
             boolean hit = target.attack(new EntityDamageByEntityEvent(this, target, EntityDamageEvent.DamageCause.ENTITY_ATTACK, damage));
             this.playAttack();
-
-            // Vanilla infection happens only when a zombie actually kills a villager:
-            // 0% on Easy, 50% on Normal and 100% on Hard.
-            if (hit && target instanceof EntityVillagerV1 && !target.isAlive()) {
-                int difficulty = this.getServer().getDifficulty();
-                boolean infect = difficulty >= 3 || (difficulty == 2 && Utils.rand());
-                if (infect) {
-                    Entity ent = Entity.createEntity("ZombieVillager", target.getChunk(), target.namedTag.copy());
-                    if (ent != null) {
-                        CreatureSpawnEvent cse = new CreatureSpawnEvent(ent.getNetworkId(), target,
-                                ent.namedTag, CreatureSpawnEvent.SpawnReason.INFECTION);
-                        level.getServer().getPluginManager().callEvent(cse);
-
-                        if (cse.isCancelled()) {
-                            ent.close();
-                        } else {
-                            ent.setHealth(ent.getMaxHealth());
-                            target.close();
-                            ent.spawnToAll();
-                        }
-                    }
-                }
+            if (hit) {
+                tryInfectVillager(this, target);
             }
         }
     }
@@ -209,6 +189,44 @@ public class EntityZombie extends EntityWalkingMob implements EntitySmite, Entit
         }
 
         return hasUpdate;
+    }
+
+    /**
+     * Applies the Bedrock villager infection rule after a fatal melee hit.
+     * Easy: 0%, Normal: 50%, Hard: 100%.
+     */
+    public static void tryInfectVillager(Entity attacker, Entity target) {
+        if (!(target instanceof EntityVillagerV1) || target.isAlive()) {
+            return;
+        }
+
+        int difficulty = attacker.getServer().getDifficulty();
+        boolean infect = difficulty >= 3 || (difficulty == 2 && Utils.rand());
+        if (!infect) {
+            return;
+        }
+
+        EntityVillagerV1 villager = (EntityVillagerV1) target;
+        villager.saveNBT();
+        CompoundTag zombieNbt = villager.namedTag.copy();
+        zombieNbt.putFloat("Health", villager.getMaxHealth());
+
+        Entity infected = Entity.createEntity("ZombieVillager", villager.getChunk(), zombieNbt);
+        if (infected == null) {
+            return;
+        }
+
+        CreatureSpawnEvent event = new CreatureSpawnEvent(infected.getNetworkId(), villager,
+                infected.namedTag, CreatureSpawnEvent.SpawnReason.INFECTION);
+        attacker.getServer().getPluginManager().callEvent(event);
+        if (event.isCancelled()) {
+            infected.close();
+            return;
+        }
+
+        infected.setHealth(infected.getMaxHealth());
+        villager.close();
+        infected.spawnToAll();
     }
 
     @Override
