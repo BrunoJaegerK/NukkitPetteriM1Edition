@@ -249,6 +249,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         }
 
         if (threat != null) {
+            this.sleepingRoutine = false;
+            this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
             double dx = this.x - threat.x;
             double dz = this.z - threat.z;
             double length = Math.sqrt(dx * dx + dz * dz);
@@ -290,12 +292,25 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 this.updateRoutineTarget();
             }
             if (this.routineTarget != null) {
+                if (this.getProfession() == PROFESSION_GENERIC
+                        && this.distanceSquared(this.routineTarget) <= 2.25
+                        && this.tryAcquireProfessionAtRoutineTarget()) {
+                    this.routineTarget = null;
+                    this.routineSearchTicks = 0;
+                    return;
+                }
+                if (this.sleepingRoutine && this.distanceSquared(this.routineTarget) <= 2.25) {
+                    this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, true);
+                    this.stayTime = 200;
+                    return;
+                }
                 this.followTarget = null;
                 this.target = this.routineTarget;
                 this.stayTime = 0;
                 this.openDoorToward(this.routineTarget);
                 return;
             }
+            this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
         }
 
         super.checkTarget();
@@ -345,6 +360,77 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         this.getServer().getPluginManager().callEvent(event);
         if (!event.isCancelled()) {
             door.toggle(null);
+            this.openedDoorPosition = new Vector3(doorX, this.getFloorY(), doorZ);
+        }
+    }
+
+    private void closeOpenedDoorIfPassed() {
+        if (this.openedDoorPosition == null) {
+            return;
+        }
+        double dx = this.x - (this.openedDoorPosition.x + 0.5);
+        double dz = this.z - (this.openedDoorPosition.z + 0.5);
+        if (dx * dx + dz * dz <= 2.25) {
+            return;
+        }
+        int x = this.openedDoorPosition.getFloorX();
+        int y = this.openedDoorPosition.getFloorY();
+        int z = this.openedDoorPosition.getFloorZ();
+        Block block = this.level.getBlock(x, y, z);
+        if (block instanceof BlockDoor && !(block instanceof BlockCopperDoor)
+                && block.getId() != BlockID.IRON_DOOR_BLOCK) {
+            BlockDoor door = (BlockDoor) block;
+            if (door.isOpen()) {
+                door.toggle(null);
+            }
+        }
+        this.openedDoorPosition = null;
+    }
+
+    private boolean tryAcquireProfessionAtRoutineTarget() {
+        if (this.routineTarget == null || this.getProfession() != PROFESSION_GENERIC) {
+            return false;
+        }
+        int centerX = this.routineTarget.getFloorX();
+        int centerY = this.routineTarget.getFloorY();
+        int centerZ = this.routineTarget.getFloorZ();
+        for (int y = centerY - 1; y <= centerY + 1; y++) {
+            for (int z = centerZ - 2; z <= centerZ + 2; z++) {
+                for (int x = centerX - 2; x <= centerX + 2; x++) {
+                    FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+                    if (chunk == null || !chunk.isGenerated()) {
+                        continue;
+                    }
+                    int blockId = chunk.getBlockId(x & 0x0f, y, z & 0x0f);
+                    int profession = this.getProfessionForWorkstation(blockId);
+                    if (profession == PROFESSION_GENERIC) {
+                        continue;
+                    }
+                    this.setProfession(profession);
+                    this.jobSite = new Vector3(this.routineTarget.x, this.routineTarget.y, this.routineTarget.z);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private int getProfessionForWorkstation(int blockId) {
+        switch (blockId) {
+            case BlockID.COMPOSTER: return PROFESSION_FARMER;
+            case BlockID.BARREL: return PROFESSION_FISHERMAN;
+            case BlockID.LOOM: return PROFESSION_SHEPHERD;
+            case BlockID.FLETCHING_TABLE: return PROFESSION_FLETCHER;
+            case BlockID.LECTERN: return PROFESSION_LIBRARIAN;
+            case BlockID.CARTOGRAPHY_TABLE: return PROFESSION_CARTOGRAPHER;
+            case BlockID.BREWING_STAND_BLOCK: return PROFESSION_PRIEST;
+            case BlockID.BLAST_FURNACE: case BlockID.LIT_BLAST_FURNACE: return PROFESSION_ARMORER;
+            case BlockID.GRINDSTONE: return PROFESSION_WEAPONSMITH;
+            case BlockID.SMITHING_TABLE: return PROFESSION_TOOLSMITH;
+            case BlockID.SMOKER: case BlockID.LIT_SMOKER: return PROFESSION_BUTCHER;
+            case BlockID.CAULDRON_BLOCK: return PROFESSION_LEATHERWORKER;
+            case BlockID.STONECUTTER: case BlockID.STONECUTTER_BLOCK: return PROFESSION_MASON;
+            default: return PROFESSION_GENERIC;
         }
     }
 
@@ -372,6 +458,33 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 case PROFESSION_FARMER:
                     wantedBlocks = new int[]{BlockID.COMPOSTER};
                     break;
+                case PROFESSION_FISHERMAN:
+                    wantedBlocks = new int[]{BlockID.BARREL};
+                    break;
+                case PROFESSION_SHEPHERD:
+                    wantedBlocks = new int[]{BlockID.LOOM};
+                    break;
+                case PROFESSION_FLETCHER:
+                    wantedBlocks = new int[]{BlockID.FLETCHING_TABLE};
+                    break;
+                case PROFESSION_CARTOGRAPHER:
+                    wantedBlocks = new int[]{BlockID.CARTOGRAPHY_TABLE};
+                    break;
+                case PROFESSION_ARMORER:
+                    wantedBlocks = new int[]{BlockID.BLAST_FURNACE, BlockID.LIT_BLAST_FURNACE};
+                    break;
+                case PROFESSION_WEAPONSMITH:
+                    wantedBlocks = new int[]{BlockID.GRINDSTONE};
+                    break;
+                case PROFESSION_TOOLSMITH:
+                    wantedBlocks = new int[]{BlockID.SMITHING_TABLE};
+                    break;
+                case PROFESSION_LEATHERWORKER:
+                    wantedBlocks = new int[]{BlockID.CAULDRON_BLOCK};
+                    break;
+                case PROFESSION_MASON:
+                    wantedBlocks = new int[]{BlockID.STONECUTTER, BlockID.STONECUTTER_BLOCK};
+                    break;
                 case PROFESSION_LIBRARIAN:
                     wantedBlocks = new int[]{BlockID.LECTERN};
                     break;
@@ -385,6 +498,13 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 case PROFESSION_BUTCHER:
                     wantedBlocks = new int[]{BlockID.SMOKER, BlockID.LIT_SMOKER};
                     break;
+                case PROFESSION_GENERIC:
+                    wantedBlocks = new int[]{BlockID.COMPOSTER, BlockID.BARREL, BlockID.LOOM,
+                            BlockID.FLETCHING_TABLE, BlockID.LECTERN, BlockID.CARTOGRAPHY_TABLE,
+                            BlockID.BREWING_STAND_BLOCK, BlockID.BLAST_FURNACE, BlockID.LIT_BLAST_FURNACE,
+                            BlockID.GRINDSTONE, BlockID.SMITHING_TABLE, BlockID.SMOKER, BlockID.LIT_SMOKER,
+                            BlockID.CAULDRON_BLOCK, BlockID.STONECUTTER, BlockID.STONECUTTER_BLOCK};
+                    break;
                 default:
                     break;
             }
@@ -394,6 +514,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             wantedBlocks = new int[]{BlockID.BED_BLOCK};
         }
 
+        this.sleepingRoutine = !this.level.isRaining() && (time >= 13000 || time < 1000);
+        this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
         this.routineTarget = wantedBlocks == null ? null : this.findNearbyRoutineBlock(wantedBlocks);
     }
 
@@ -475,7 +597,11 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             if (!(entity instanceof EntityVillagerV1) || entity.closed) {
                 continue;
             }
-            Vector3 reserved = ((EntityVillagerV1) entity).routineTarget;
+            EntityVillagerV1 villager = (EntityVillagerV1) entity;
+            Vector3 reserved = villager.routineTarget;
+            if (reserved == null && villager.getProfession() != PROFESSION_GENERIC) {
+                reserved = villager.jobSite;
+            }
             if (reserved == null) {
                 continue;
             }
@@ -535,7 +661,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     }
 
     public void setTradeTier(int tier) {
-        this.tradeTier = tier;
+        this.tradeTier = Math.max(0, tier);
+        this.namedTag.putInt("TradeTier", this.tradeTier);
     }
 
     public int getTradeTier() {
@@ -544,6 +671,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
     public void setWilling(boolean value) {
         this.willing = value;
+        this.namedTag.putBoolean("Willing", value);
     }
 
     public boolean isWilling() {
@@ -652,6 +780,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 this.shareFoodWithNearbyVillager();
             }
         }
+        this.closeOpenedDoorIfPassed();
         return updated;
     }
 
@@ -954,6 +1083,16 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     public void saveNBT() {
         super.saveNBT();
         this.namedTag.putInt("FoodPoints", this.foodPoints);
+        this.namedTag.putInt("TradeTier", this.tradeTier);
+        this.namedTag.putBoolean("Willing", this.willing);
+        if (this.jobSite != null) {
+            this.namedTag.putBoolean("HasJobSite", true);
+            this.namedTag.putInt("JobSiteX", this.jobSite.getFloorX());
+            this.namedTag.putInt("JobSiteY", this.jobSite.getFloorY());
+            this.namedTag.putInt("JobSiteZ", this.jobSite.getFloorZ());
+        } else {
+            this.namedTag.putBoolean("HasJobSite", false);
+        }
     }
 
     @Override
