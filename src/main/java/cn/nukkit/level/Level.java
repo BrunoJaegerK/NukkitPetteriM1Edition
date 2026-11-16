@@ -18,6 +18,7 @@ import cn.nukkit.entity.passive.EntityIronGolem;
 import cn.nukkit.entity.projectile.EntityProjectile;
 import cn.nukkit.entity.weather.EntityLightning;
 import cn.nukkit.event.block.BlockBreakEvent;
+import cn.nukkit.event.block.BlockFormEvent;
 import cn.nukkit.event.block.BlockPlaceEvent;
 import cn.nukkit.event.block.BlockUpdateEvent;
 import cn.nukkit.event.entity.CreatureSpawnEvent;
@@ -1367,6 +1368,12 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
                 continue;
             }
 
+            // Weather precipitation is independent from random block ticking and
+            // does not require neighboring chunks to be loaded.
+            if (this.raining && this.getDimension() == DIMENSION_OVERWORLD) {
+                tickSnowAccumulation(chunk);
+            }
+
             if (!areNeighboringChunksLoaded(index)) {
                 continue;
             }
@@ -1427,6 +1434,61 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Simulates a local snowfall precipitation tick for a loaded chunk.
+     * A single surface column is sampled per chunk tick, so snow builds up
+     * gradually without scanning every block in the chunk.
+     */
+    private void tickSnowAccumulation(FullChunk chunk) {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        if (random.nextInt(16) != 0) {
+            return;
+        }
+
+        int x = (chunk.getX() << 4) + random.nextInt(16);
+        int z = (chunk.getZ() << 4) + random.nextInt(16);
+        Biome biome = Biome.getBiome(chunk.getBiomeId(x & 0x0f, z & 0x0f));
+        if (!biome.isFreezing()) {
+            return;
+        }
+
+        int surfaceY = chunk.getHighestBlockAt(x & 0x0f, z & 0x0f, false);
+        if (surfaceY < this.getMinBlockY() || surfaceY >= this.getMaxBlockY()) {
+            return;
+        }
+
+        Block surface = this.getBlock(chunk, x, surfaceY, z, true);
+        int targetY;
+        int snowLayers = 0;
+
+        if (surface instanceof BlockSnowLayer) {
+            targetY = surfaceY;
+            snowLayers = surface.getDamage() & 0x7;
+            if (snowLayers >= 7) {
+                return;
+            }
+        } else {
+            // Snow can only rest on a solid supporting surface.
+            if (!surface.isSolid() || surface.getId() == Block.ICE
+                    || surface.getId() == Block.PACKED_ICE || surface.getId() == Block.ICE_FROSTED) {
+                return;
+            }
+            targetY = surfaceY + 1;
+            if (this.getBlock(chunk, x, targetY, z, true).getId() != Block.AIR) {
+                return;
+            }
+        }
+
+        int newLayers = snowLayers + 1;
+        Block oldState = this.getBlock(chunk, x, targetY, z, true);
+        Block newState = Block.get((Block.SNOW_LAYER << Block.DATA_BITS) | (newLayers - 1), this, x, targetY, z);
+        BlockFormEvent event = new BlockFormEvent(oldState, newState);
+        this.server.getPluginManager().callEvent(event);
+        if (!event.isCancelled()) {
+            this.setBlock(x, targetY, z, event.getNewState(), false, true);
         }
     }
 
