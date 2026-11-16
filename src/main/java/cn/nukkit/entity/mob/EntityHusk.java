@@ -81,8 +81,10 @@ public class EntityHusk extends EntityWalkingMob implements EntitySmite {
                 damage.put(EntityDamageEvent.DamageModifier.ARMOR,
                         (float) (damage.getOrDefault(EntityDamageEvent.DamageModifier.ARMOR, 0f) - Math.floor(damage.getOrDefault(EntityDamageEvent.DamageModifier.BASE, 1f) * points * 0.04)));
             }
-            if (player.attack(new EntityDamageByEntityEvent(this, player, EntityDamageEvent.DamageCause.ENTITY_ATTACK, damage))) {
+            boolean hit = player.attack(new EntityDamageByEntityEvent(this, player, EntityDamageEvent.DamageCause.ENTITY_ATTACK, damage));
+            if (hit) {
                 player.addEffect(Effect.getEffect(Effect.HUNGER).setDuration(140), EntityPotionEffectEvent.Cause.ATTACK);
+                EntityZombie.tryInfectVillager(this, player);
             }
             this.playAttack();
         }
