@@ -87,6 +87,9 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     private Vector3 routinePoiBlock;
     private Vector3 sleepingBedPosition;
     private Vector3 sleepingReturnPosition;
+    private Vector3 lastAssociatedPoiBlock;
+    private int lastAssociatedPoiId = -1;
+    private int lastAssociatedPoiMeta = -1;
     private int routineSchedulePhase = Integer.MIN_VALUE;
 
     public EntityVillagerV1(FullChunk chunk, CompoundTag nbt) {
@@ -668,6 +671,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                     new Vector3(this.jobSiteBlock.x + 0.5, this.jobSiteBlock.y + 1.0, this.jobSiteBlock.z + 0.5)));
         }
         this.routineTarget = nextTarget;
+        this.updateRoutinePoiAssociationParticles();
         if (this.sleepingRoutine && this.routineTarget != null
                 && !this.routineTarget.equals(this.lastSleepParticleTarget)) {
             this.level.addParticle(new HappyVillagerParticle(
@@ -675,6 +679,44 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             this.lastSleepParticleTarget = new Vector3(this.routineTarget.x, this.routineTarget.y, this.routineTarget.z);
         } else if (!this.sleepingRoutine) {
             this.lastSleepParticleTarget = null;
+        }
+    }
+
+    /**
+     * Emit association particles when a villager claims a different workstation or bed.
+     * Compare the actual POI block and its metadata, not only the standing position:
+     * replacing a bed at the same coordinates can keep the stand position unchanged.
+     */
+    private void updateRoutinePoiAssociationParticles() {
+        if (this.routinePoiBlock == null) {
+            this.lastAssociatedPoiBlock = null;
+            this.lastAssociatedPoiId = -1;
+            this.lastAssociatedPoiMeta = -1;
+            return;
+        }
+
+        int x = this.routinePoiBlock.getFloorX();
+        int y = this.routinePoiBlock.getFloorY();
+        int z = this.routinePoiBlock.getFloorZ();
+        FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+        if (chunk == null || !chunk.isGenerated()) {
+            return;
+        }
+
+        Block poi = this.level.getBlock(chunk, x, y, z, false);
+        int poiId = poi.getId();
+        int poiMeta = poi.getDamage();
+        boolean changed = this.lastAssociatedPoiBlock == null
+                || this.lastAssociatedPoiBlock.getFloorX() != x
+                || this.lastAssociatedPoiBlock.getFloorY() != y
+                || this.lastAssociatedPoiBlock.getFloorZ() != z
+                || this.lastAssociatedPoiId != poiId
+                || this.lastAssociatedPoiMeta != poiMeta;
+        if (changed) {
+            this.level.addParticle(new HappyVillagerParticle(new Vector3(x + 0.5, y + 1.0, z + 0.5)));
+            this.lastAssociatedPoiBlock = new Vector3(x, y, z);
+            this.lastAssociatedPoiId = poiId;
+            this.lastAssociatedPoiMeta = poiMeta;
         }
     }
 
@@ -1085,6 +1127,22 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         this.motionX = 0;
         this.motionY = 0;
         this.motionZ = 0;
+
+        // Bedrock bed metadata stores the direction the head of the bed faces
+        // in the lower two bits: 0=south, 1=west, 2=north, 3=east.
+        // The sleeping pose extends backwards from the head, so the villager
+        // must face the pillow rather than retaining its previous walking yaw.
+        Block bedBlock = this.level.getBlock(bedChunk, bedX, bedY, bedZ, false);
+        int bedDirection = bedBlock.getDamage() & 0x03;
+        double bedYaw;
+        switch (bedDirection) {
+            case 1: bedYaw = 90.0; break;  // West
+            case 2: bedYaw = 180.0; break; // North
+            case 3: bedYaw = -90.0; break; // East
+            case 0:
+            default: bedYaw = 0.0; break; // South
+        }
+        this.setRotation(bedYaw, 0.0);
         this.setPosition(new Vector3(bedX + 0.5, bedY + 0.5, bedZ + 0.5));
         this.setDataProperty(new IntPositionEntityData(DATA_PLAYER_BED_POSITION, bedX, bedY, bedZ));
         this.setGenericFlag(DATA_FLAG_SLEEPING, true);
@@ -1102,6 +1160,10 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         this.removeDataProperty(DATA_PLAYER_BED_POSITION);
         Vector3 returnPosition = this.sleepingReturnPosition;
         this.sleepingBedPosition = null;
+        // Force a fresh association effect after the bed is replaced or reclaimed.
+        this.lastAssociatedPoiBlock = null;
+        this.lastAssociatedPoiId = -1;
+        this.lastAssociatedPoiMeta = -1;
         this.sleepingReturnPosition = null;
         this.motionX = 0;
         this.motionY = 0;
