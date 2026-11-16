@@ -31,6 +31,7 @@ import cn.nukkit.inventory.TradeInventoryRecipe;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.GameRule;
 import cn.nukkit.level.Location;
+import cn.nukkit.level.particle.HappyVillagerParticle;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.math.Vector3;
 import cn.nukkit.nbt.tag.CompoundTag;
@@ -81,6 +82,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     private Vector3 jobSiteBlock;
     private Vector3 openedDoorPosition;
     private boolean sleepingRoutine;
+    private Vector3 lastSleepParticleTarget;
 
     public EntityVillagerV1(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -347,6 +349,14 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                     this.stayTime = 200;
                     return;
                 }
+                if (!this.sleepingRoutine && this.jobSite != null
+                        && this.routineTarget.equals(this.jobSite)
+                        && this.distanceSquared(this.routineTarget) <= 2.25) {
+                    // Remain at the claimed workstation for the work portion of the day.
+                    this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
+                    this.stayTime = 200;
+                    return;
+                }
                 this.followTarget = null;
                 // Keep the route finder aimed at the current routine destination. Replacing
                 // its next waypoint with the final target every tick makes villagers walk
@@ -492,6 +502,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         this.setProfession(selectedProfession);
         this.jobSite = new Vector3(claimedStand.x, claimedStand.y, claimedStand.z);
         this.jobSiteBlock = new Vector3(selectedX, selectedY, selectedZ);
+        this.level.addParticle(new HappyVillagerParticle(new Vector3(selectedX + 0.5, selectedY + 1.0, selectedZ + 0.5)));
         return true;
     }
 
@@ -615,7 +626,29 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         if (!this.sleepingRoutine) {
             this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
         }
-        this.routineTarget = wantedBlocks == null ? null : this.findNearbyRoutineBlock(wantedBlocks);
+        Vector3 nextTarget = wantedBlocks == null ? null : this.findNearbyRoutineBlock(wantedBlocks);
+        // A claimed workstation is the villager's home POI: prefer it over another
+        // matching block so the villager returns to the station it actually claimed.
+        if (wantedBlocks != null && time >= 2000 && time < 9000
+                && this.jobSite != null && this.jobSiteBlock != null) {
+            int siteX = this.jobSiteBlock.getFloorX();
+            int siteY = this.jobSiteBlock.getFloorY();
+            int siteZ = this.jobSiteBlock.getFloorZ();
+            FullChunk siteChunk = this.level.getChunkIfLoaded(siteX >> 4, siteZ >> 4);
+            if (siteChunk != null && siteChunk.isGenerated()
+                    && this.getProfessionForWorkstation(siteChunk.getBlockId(siteX & 0x0f, siteY, siteZ & 0x0f)) == this.getProfession()) {
+                nextTarget = new Vector3(this.jobSite.x, this.jobSite.y, this.jobSite.z);
+            }
+        }
+        this.routineTarget = nextTarget;
+        if (this.sleepingRoutine && this.routineTarget != null
+                && !this.routineTarget.equals(this.lastSleepParticleTarget)) {
+            this.level.addParticle(new HappyVillagerParticle(
+                    new Vector3(this.routineTarget.x, this.routineTarget.y + 0.8, this.routineTarget.z)));
+            this.lastSleepParticleTarget = new Vector3(this.routineTarget.x, this.routineTarget.y, this.routineTarget.z);
+        } else if (!this.sleepingRoutine) {
+            this.lastSleepParticleTarget = null;
+        }
     }
 
     /** Finds a nearby dry standing position under a solid roof during rain. */
