@@ -32,6 +32,7 @@ import cn.nukkit.inventory.TradeInventoryRecipe;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.GameRule;
 import cn.nukkit.level.Location;
+import cn.nukkit.level.Sound;
 import cn.nukkit.level.particle.HappyVillagerParticle;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.math.Vector3;
@@ -91,6 +92,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     private int lastAssociatedPoiId = -1;
     private int lastAssociatedPoiMeta = -1;
     private int routineSchedulePhase = Integer.MIN_VALUE;
+    private int workSoundTicks;
 
     public EntityVillagerV1(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -359,11 +361,13 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 }
                 if (!this.sleepingRoutine && this.jobSite != null
                         && this.routineTarget.equals(this.jobSite)
-                        && this.distanceSquared(this.routineTarget) <= 2.25) {
-                    // Remain at the claimed workstation for the work portion of the day.
+                        && this.distanceSquared(this.routineTarget) <= 0.49) {
+                    // The villager must reach the actual standing point beside the workstation;
+                    // a 1.5-block arrival radius made it stop visibly too far away.
                     this.routineSchedulePhase = this.getRoutineSchedulePhase();
                     this.setGenericFlag(DATA_FLAG_SLEEPING, false);
                     this.stayTime = 200;
+                    this.playWorkstationSound();
                     return;
                 }
                 this.followTarget = null;
@@ -652,7 +656,13 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             FullChunk siteChunk = this.level.getChunkIfLoaded(siteX >> 4, siteZ >> 4);
             if (siteChunk != null && siteChunk.isGenerated()
                     && this.getProfessionForWorkstation(siteChunk.getBlockId(siteX & 0x0f, siteY, siteZ & 0x0f)) == this.getProfession()) {
-                nextTarget = new Vector3(this.jobSite.x, this.jobSite.y, this.jobSite.z);
+                Vector3 closerStand = this.findRoutineStandPosition(siteX, siteY, siteZ);
+                if (closerStand != null) {
+                    nextTarget = closerStand;
+                    this.jobSite = closerStand.clone();
+                } else {
+                    nextTarget = new Vector3(this.jobSite.x, this.jobSite.y, this.jobSite.z);
+                }
                 this.routinePoiBlock = new Vector3(siteX, siteY, siteZ);
             } else if (siteChunk != null && siteChunk.isGenerated()) {
                 // The claimed workstation was replaced: release the stale POI and
@@ -843,7 +853,12 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         if (poiY <= this.level.getMinBlockY() || poiY >= this.level.getMaxBlockY()) {
             return null;
         }
-        int[][] offsets = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {0, 0}};
+        // Keep the villager beside (not inside) the workstation, but closer than
+        // the center of the neighboring block. The 0.8-block offset leaves room
+        // for the 0.6-wide villager while making it visibly face the workstation.
+        int[][] offsets = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        Vector3 nearest = null;
+        double nearestDistance = Double.MAX_VALUE;
         for (int[] offset : offsets) {
             int x = poiX + offset[0];
             int z = poiZ + offset[1];
@@ -857,13 +872,76 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             int support = chunk.getBlockId(localX, poiY - 1, localZ);
             Block feet = this.level.getBlock(chunk, x, poiY, z, false);
             Block head = this.level.getBlock(chunk, x, poiY + 1, z, false);
-            // Flowers, grass and other non-colliding blocks should not prevent a POI
-            // from having a valid standing position.
-            if (Block.isBlockSolidById(support) && feet.canPassThrough() && head.canPassThrough()) {
-                return new Vector3(x + 0.5, poiY, z + 0.5);
+            if (!Block.isBlockSolidById(support) || !feet.canPassThrough() || !head.canPassThrough()) {
+                continue;
+            }
+
+            Vector3 candidate = new Vector3(poiX + 0.5 + offset[0] * 0.8,
+                    poiY, poiZ + 0.5 + offset[1] * 0.8);
+            double dx = candidate.x - this.x;
+            double dy = candidate.y - this.y;
+            double dz = candidate.z - this.z;
+            double distance = dx * dx + dy * dy + dz * dz;
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearest = candidate;
             }
         }
-        return null;
+        return nearest;
+    }
+
+    /**
+     * Play a short workstation-specific activity sound while the villager is
+     * standing at its claimed job site. Sounds are throttled to avoid spam.
+     */
+    private void playWorkstationSound() {
+        if (++this.workSoundTicks < 180) {
+            return;
+        }
+        this.workSoundTicks = 0;
+        Sound sound;
+        switch (this.getProfession()) {
+            case PROFESSION_FARMER:
+                sound = Sound.BLOCK_COMPOSTER_FILL;
+                break;
+            case PROFESSION_FISHERMAN:
+                sound = Sound.BLOCK_BARREL_OPEN;
+                break;
+            case PROFESSION_SHEPHERD:
+                sound = Sound.BLOCK_LOOM_USE;
+                break;
+            case PROFESSION_CARTOGRAPHER:
+                sound = Sound.BLOCK_CARTOGRAPHY_TABLE_USE;
+                break;
+            case PROFESSION_ARMORER:
+            case PROFESSION_BLACKSMITH:
+                sound = Sound.BLOCK_BLASTFURNACE_FIRE_CRACKLE;
+                break;
+            case PROFESSION_WEAPONSMITH:
+                sound = Sound.BLOCK_GRINDSTONE_USE;
+                break;
+            case PROFESSION_TOOLSMITH:
+                sound = Sound.SMITHING_TABLE_USE;
+                break;
+            case PROFESSION_LEATHERWORKER:
+                sound = Sound.CAULDRON_ADDDYE;
+                break;
+            case PROFESSION_MASON:
+                sound = Sound.BLOCK_STONECUTTER_USE;
+                break;
+            case PROFESSION_PRIEST:
+                sound = Sound.RANDOM_POTION_BREWED;
+                break;
+            case PROFESSION_BUTCHER:
+                sound = Sound.BLOCK_SMOKER_SMOKE;
+                break;
+            case PROFESSION_LIBRARIAN:
+            case PROFESSION_FLETCHER:
+            default:
+                sound = Sound.MOB_VILLAGER_IDLE;
+                break;
+        }
+        this.level.addSound(this, sound, 0.65f, 1.0f);
     }
 
     private boolean isRoutineBlockReserved(Entity[] nearbyEntities, double x, double y, double z, int blockId) {
