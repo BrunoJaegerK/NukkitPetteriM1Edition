@@ -854,6 +854,14 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             this.setInLove();
             this.namedTag.putInt("FoodPoints", this.foodPoints);
         }
+        if (this.getServer().getMobAiEnabled() && this.willing && !this.isBaby()
+                && !this.isInLove() && !this.isInLoveCooldown() && this.consumeStoredFood()) {
+            if (this.foodPoints >= 12) {
+                this.foodPoints = 0;
+                this.setInLove();
+            }
+            this.persistFoodInventory();
+        }
         if (this.routineSearchTicks > 0) {
             this.routineSearchTicks = Math.max(0, this.routineSearchTicks - Math.max(0, tickDiff));
         }
@@ -1142,7 +1150,15 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         this.farmSearchTicks = 0;
     }
 
-    private void consumeStoredFood() {
+    private boolean consumeStoredFood() {
+        if (!this.willing || this.isBaby() || this.isInLove() || this.isInLoveCooldown()) {
+            return false;
+        }
+        int previousFoodPoints = this.foodPoints;
+        int previousWheatItems = this.wheatItems;
+        int previousCarrotSeeds = this.carrotSeeds;
+        int previousPotatoSeeds = this.potatoSeeds;
+        int previousBeetrootItems = this.beetrootItems;
         while (this.foodPoints < 12) {
             if (this.wheatItems >= 3) {
                 this.wheatItems -= 3;
@@ -1160,6 +1176,18 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 break;
             }
         }
+        return previousFoodPoints != this.foodPoints || previousWheatItems != this.wheatItems
+                || previousCarrotSeeds != this.carrotSeeds || previousPotatoSeeds != this.potatoSeeds
+                || previousBeetrootItems != this.beetrootItems;
+    }
+
+    private void persistFoodInventory() {
+        this.namedTag.putInt("FoodPoints", this.foodPoints);
+        this.namedTag.putInt("WheatItems", this.wheatItems);
+        this.namedTag.putInt("CarrotSeeds", this.carrotSeeds);
+        this.namedTag.putInt("PotatoSeeds", this.potatoSeeds);
+        this.namedTag.putInt("BeetrootSeeds", this.beetrootSeeds);
+        this.namedTag.putInt("BeetrootItems", this.beetrootItems);
     }
 
     private void shareFoodWithNearbyVillager() {
