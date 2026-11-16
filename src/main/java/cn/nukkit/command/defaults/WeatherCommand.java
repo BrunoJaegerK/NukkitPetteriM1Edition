@@ -49,6 +49,13 @@ public class WeatherCommand extends VanillaCommand {
             seconds = 600;
         }
 
+        // Weather timers are stored in ticks using a signed 32-bit integer.
+        // Reject invalid durations instead of allowing overflow or instant transitions.
+        if (seconds <= 0 || seconds > Integer.MAX_VALUE / 20) {
+            sender.sendMessage(new TranslationContainer("commands.generic.usage", this.usageMessage));
+            return true;
+        }
+
         if (sender instanceof Player) {
             level = ((Player) sender).getLevel();
         } else {
