@@ -15,6 +15,7 @@ This fork includes dedicated AI improvements for the following Bedrock entities:
 - **Shulker:** attachment and peek metadata, defensive shell behavior, projectile attacks with levitation, safe relocation, and retaliation against attackers.
 - **Villagers:** daily work, meeting and rest routines, hostile-mob avoidance, baby following, food pickup/sharing, wheat-to-bread crafting, breeding, sleeping state, rain shelter, wooden-door opening/closing, and farmer crop harvesting/replanting.
 - **Villager professions:** unemployed villagers can claim nearby workstations (composter, barrel, loom, fletching table, lectern, cartography table, brewing stand, blast furnace, grindstone, smithing table, smoker, cauldron and stonecutter). Their Bedrock profession/skin metadata updates immediately; villagers without trades can lose the profession if their claimed workstation is removed.
+- **Villager infection:** zombies and husks only convert villagers they kill, using the vanilla difficulty chances (0% Easy, 50% Normal, 100% Hard), and preserve the villager's NBT at the same location.
 
 ### Required settings
 
