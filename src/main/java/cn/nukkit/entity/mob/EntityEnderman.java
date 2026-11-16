@@ -39,6 +39,9 @@ public class EntityEnderman extends EntityWalkingMob {
     private boolean teleported;
 
     private int chaseTeleportTicks;
+    private long staringPlayerId = -1;
+    private int stareHoldTicks;
+    private boolean stareCalmed;
 
     private boolean pickupBlocks;
 
@@ -167,8 +170,19 @@ public class EntityEnderman extends EntityWalkingMob {
         this.pickupBlocks = !server.suomiCraftPEMode()
                 && this.level.getGameRules().getBoolean(GameRule.MOB_GRIEFING);
 
+        if (this.stareHoldTicks > 0) {
+            this.stareHoldTicks = Math.max(0, this.stareHoldTicks - Math.max(1, tickDiff));
+            if (this.stareHoldTicks == 0) {
+                this.staringPlayerId = -1;
+                this.stareCalmed = false;
+            }
+        }
         if (this.angry > 0) {
             this.setAngry(Math.max(0, this.angry - Math.max(1, tickDiff)));
+            if (this.angry == 0 && this.stareHoldTicks > 0) {
+                // A player who keeps eye contact long enough can outlast the anger.
+                this.stareCalmed = true;
+            }
         }
 
         int b = level.getBlockIdAt(chunk, this.getFloorX(), this.getFloorY(), this.getFloorZ());
@@ -442,6 +456,19 @@ public class EntityEnderman extends EntityWalkingMob {
     }
 
     @Override
+    protected void checkTarget() {
+        if (this.stareHoldTicks > 0 && this.staringPlayerId != -1) {
+            // Eye contact makes an Enderman freeze in place. Do not let the normal
+            // wandering/target selector restart movement until the player looks away.
+            this.target = null;
+            this.followTarget = null;
+            this.stayTime = Math.max(this.stayTime, 2);
+            return;
+        }
+        super.checkTarget();
+    }
+
+    @Override
     public boolean targetOption(EntityCreature creature, double distance) {
         if (creature instanceof EntityEndermite) {
             return !creature.closed && creature.isAlive() && distance <= 4096;
@@ -450,12 +477,33 @@ public class EntityEnderman extends EntityWalkingMob {
             return false;
         }
         Player player = (Player) creature;
+        if (this.stareHoldTicks > 0 && this.staringPlayerId == player.getId()) {
+            return false;
+        }
         return !player.closed && player.spawned && player.isAlive()
                 && (player.isSurvival() || player.isAdventure()) && distance <= 4096; // 64 blocks
     }
 
     public void stareToAngry() {
-        setAngry(500);
+        if (!this.isAngry()) {
+            setAngry(500);
+        }
+    }
+
+    public void stareToAngry(Player player) {
+        if (player == null || player.closed) {
+            return;
+        }
+        if (this.staringPlayerId != player.getId() || this.stareHoldTicks <= 0) {
+            this.staringPlayerId = player.getId();
+            this.stareCalmed = false;
+        }
+        this.stareHoldTicks = 8;
+        if (!this.isAngry() && !this.stareCalmed) {
+            setAngry(500);
+        }
+        this.target = null;
+        this.followTarget = null;
     }
 
     @Override
