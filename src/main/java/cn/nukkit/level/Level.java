@@ -1461,6 +1461,9 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
         }
 
         Block surface = this.getBlock(chunk, x, surfaceY, z, true);
+        if (!this.canBlockSeeSky(new Vector3(x, surfaceY + 1, z))) {
+            return;
+        }
         int targetY;
         int snowLayers = 0;
 
