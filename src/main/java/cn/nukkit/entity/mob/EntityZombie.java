@@ -128,21 +128,23 @@ public class EntityZombie extends EntityWalkingMob implements EntitySmite, Entit
 
             // Vanilla infection happens only when a zombie actually kills a villager:
             // 0% on Easy, 50% on Normal and 100% on Hard.
-            int difficulty = this.getServer().getDifficulty();
-            boolean infect = difficulty >= 3 || (difficulty == 2 && Utils.rand());
-            if (hit && infect && target instanceof EntityVillagerV1 && !target.isAlive()) {
-                Entity ent = Entity.createEntity("ZombieVillager", target.getChunk(), target.namedTag.copy());
-                if (ent != null) {
-                    CreatureSpawnEvent cse = new CreatureSpawnEvent(ent.getNetworkId(), target,
-                            ent.namedTag, CreatureSpawnEvent.SpawnReason.INFECTION);
-                    level.getServer().getPluginManager().callEvent(cse);
+            if (hit && target instanceof EntityVillagerV1 && !target.isAlive()) {
+                int difficulty = this.getServer().getDifficulty();
+                boolean infect = difficulty >= 3 || (difficulty == 2 && Utils.rand());
+                if (infect) {
+                    Entity ent = Entity.createEntity("ZombieVillager", target.getChunk(), target.namedTag.copy());
+                    if (ent != null) {
+                        CreatureSpawnEvent cse = new CreatureSpawnEvent(ent.getNetworkId(), target,
+                                ent.namedTag, CreatureSpawnEvent.SpawnReason.INFECTION);
+                        level.getServer().getPluginManager().callEvent(cse);
 
-                    if (cse.isCancelled()) {
-                        ent.close();
-                    } else {
-                        ent.setHealth(ent.getMaxHealth());
-                        target.close();
-                        ent.spawnToAll();
+                        if (cse.isCancelled()) {
+                            ent.close();
+                        } else {
+                            ent.setHealth(ent.getMaxHealth());
+                            target.close();
+                            ent.spawnToAll();
+                        }
                     }
                 }
             }
