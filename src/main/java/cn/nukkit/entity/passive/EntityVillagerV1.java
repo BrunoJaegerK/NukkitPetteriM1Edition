@@ -167,10 +167,10 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     private void updateProfessionMetadata() {
         int profession = this.getProfession();
         if (this.getNetworkId() == EntityVillager.NETWORK_ID) {
-            this.setDataProperty(new IntEntityData(DATA_VARIANT, this.getModernSkinVariant(profession)), false);
-            this.setDataProperty(new IntEntityData(DATA_MARK_VARIANT, this.getModernProfessionId(profession)), false);
+            this.setDataProperty(new IntEntityData(DATA_VARIANT, this.getModernSkinVariant(profession)));
+            this.setDataProperty(new IntEntityData(DATA_MARK_VARIANT, this.getModernProfessionId(profession)));
         } else {
-            this.setDataProperty(new IntEntityData(DATA_VARIANT, this.getLegacySkinVariant(profession)), false);
+            this.setDataProperty(new IntEntityData(DATA_VARIANT, this.getLegacySkinVariant(profession)));
         }
     }
 
@@ -406,8 +406,9 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                     if (profession == PROFESSION_GENERIC) {
                         continue;
                     }
+                    Vector3 claimedStand = this.routineTarget;
                     this.setProfession(profession);
-                    this.jobSite = new Vector3(this.routineTarget.x, this.routineTarget.y, this.routineTarget.z);
+                    this.jobSite = new Vector3(claimedStand.x, claimedStand.y, claimedStand.z);
                     return true;
                 }
             }
