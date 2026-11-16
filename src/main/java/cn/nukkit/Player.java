@@ -2443,7 +2443,7 @@ public class Player extends EntityHuman implements CommandSender, InventoryHolde
                 Entity[] entities = this.level.getCollidingEntities(aab.offset(-Math.sin(this.getYaw() * Math.PI / 180) * i, i * (Math.tan(this.getPitch() * -1 * Math.PI / 180)), Math.cos(this.getYaw() * Math.PI / 180) * i));
                 for (Entity e : entities) {
                     if (e instanceof EntityEnderman) {
-                        ((EntityEnderman) e).stareToAngry();
+                        ((EntityEnderman) e).stareToAngry(this);
                     }
                 }
             }
