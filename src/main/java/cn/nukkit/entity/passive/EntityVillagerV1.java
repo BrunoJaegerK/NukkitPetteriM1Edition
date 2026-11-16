@@ -355,11 +355,11 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                         || !this.route.getDestination().equals(this.routineTarget)) {
                     this.route = new WalkerRouteFinder(this, this, this.routineTarget);
                 }
-                if (this.route.hasCurrentNode()) {
-                    this.target = this.route.getCurrentNode().getVector3();
-                } else {
-                    this.target = this.routineTarget;
-                }
+                // A route can report a current index while its node list is being
+                // reset/rebuilt. Never dereference a missing waypoint during the tick.
+                cn.nukkit.entity.route.Node currentNode = this.route.getCurrentNode();
+                Vector3 waypoint = currentNode == null ? null : currentNode.getVector3();
+                this.target = waypoint == null ? this.routineTarget : waypoint;
                 this.stayTime = 0;
                 this.openDoorToward(this.target);
                 return;
