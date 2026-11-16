@@ -567,7 +567,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             this.routinePoiBlock = null;
             this.routineTarget = this.findNearbyShelter();
             return;
-        } else if (time >= 2000 && time < 9000) {
+        } else if (this.isVillagerWorkTime(time)) {
             switch (this.getProfession()) {
                 case PROFESSION_FARMER:
                     wantedBlocks = new int[]{BlockID.COMPOSTER};
@@ -624,13 +624,15 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 default:
                     break;
             }
-        } else if (time >= 9000 && time < 11000) {
-            wantedBlocks = new int[]{461}; // Bell
-        } else if (time >= 13000 || time < 1000) {
+        } else if (time >= 8000 && time < 10000) {
+            wantedBlocks = new int[]{461}; // Bedrock villager gathering / village meeting
+        } else if (time >= 11000) {
+            // Home activity: return to a bed before the sleep state begins.
             wantedBlocks = new int[]{BlockID.BED_BLOCK};
         }
 
-        this.sleepingRoutine = !this.level.isRaining() && (time >= 13000 || time < 1000);
+        this.sleepingRoutine = !this.level.isRaining()
+                && ((time >= 12000 && time < 13000) || time >= 14000);
         if (!this.sleepingRoutine) {
             this.wakeFromRoutineSleep();
             this.setGenericFlag(DATA_FLAG_SLEEPING, false);
@@ -639,7 +641,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         Vector3 nextTarget = wantedBlocks == null ? null : this.findNearbyRoutineBlock(wantedBlocks);
         // A claimed workstation is the villager's home POI: prefer it over another
         // matching block so the villager returns to the station it actually claimed.
-        if (wantedBlocks != null && time >= 2000 && time < 9000
+        if (wantedBlocks != null && this.isVillagerWorkTime(time)
                 && this.jobSite != null && this.jobSiteBlock != null) {
             int siteX = this.jobSiteBlock.getFloorX();
             int siteY = this.jobSiteBlock.getFloorY();
@@ -656,7 +658,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 this.jobSiteBlock = null;
             }
         }
-        if (wantedBlocks != null && time >= 2000 && time < 9000
+        if (wantedBlocks != null && this.isVillagerWorkTime(time)
                 && this.jobSite == null && this.jobSiteBlock == null
                 && nextTarget != null && this.routinePoiBlock != null) {
             // Migrate older villagers whose profession was saved without its POI.
@@ -1032,21 +1034,29 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         return updated;
     }
 
+    /** Bedrock Edition villager timetable (time 0 is 06:00). */
     private int getRoutineSchedulePhase() {
         if (this.level.isRaining()) {
             return -1;
         }
         long time = Math.floorMod((long) this.level.getTime(), 24000L);
-        if (time >= 13000 || time < 1000) return 0; // Rest
-        if (time < 2000) return 1; // Wake / wander
-        if (time < 9000) return 2; // Work
-        if (time < 11000) return 3; // Meeting
-        return 4; // Wander / play
+        if (time < 2000) return 0; // Morning work
+        if (time < 8000) return 1; // Wander
+        if (time < 10000) return 2; // Gather at village meeting point
+        if (time < 11000) return 3; // Afternoon work
+        if (time < 12000) return 4; // Go home
+        if (time < 13000) return 5; // Sleep
+        if (time < 14000) return 6; // Home
+        return 7; // Night sleep
+    }
+
+    private boolean isVillagerWorkTime(long time) {
+        return time < 2000 || (time >= 10000 && time < 11000);
     }
 
     private boolean isVillagerSleepTime() {
         long time = Math.floorMod((long) this.level.getTime(), 24000L);
-        return !this.level.isRaining() && (time >= 13000 || time < 1000);
+        return !this.level.isRaining() && ((time >= 12000 && time < 13000) || time >= 14000);
     }
 
     /** Enter the bed using the Bedrock sleeping-position metadata. */
@@ -1106,7 +1116,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
     private boolean isFarmerWorkTime() {
         long time = Math.floorMod((long) this.level.getTime(), 24000L);
-        return !this.level.isRaining() && time >= 2000 && time < 9000;
+        return !this.level.isRaining() && this.isVillagerWorkTime(time);
     }
 
     private Vector3 findNearestMatureCrop() {
