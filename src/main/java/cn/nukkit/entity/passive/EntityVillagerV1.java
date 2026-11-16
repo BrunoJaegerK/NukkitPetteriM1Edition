@@ -8,6 +8,7 @@ import cn.nukkit.block.BlockDoor;
 import cn.nukkit.block.BlockID;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
+import cn.nukkit.entity.data.IntEntityData;
 import cn.nukkit.entity.item.EntityItem;
 import cn.nukkit.entity.mob.EntityWitch;
 import cn.nukkit.entity.mob.EntityDrowned;
@@ -46,13 +47,23 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     public static final int PROFESSION_BLACKSMITH = 3;
     public static final int PROFESSION_BUTCHER = 4;
     public static final int PROFESSION_GENERIC = 5;
+    public static final int PROFESSION_FISHERMAN = 6;
+    public static final int PROFESSION_SHEPHERD = 7;
+    public static final int PROFESSION_FLETCHER = 8;
+    public static final int PROFESSION_CARTOGRAPHER = 9;
+    public static final int PROFESSION_ARMORER = 10;
+    public static final int PROFESSION_WEAPONSMITH = 11;
+    public static final int PROFESSION_TOOLSMITH = 12;
+    public static final int PROFESSION_LEATHERWORKER = 13;
+    public static final int PROFESSION_MASON = 14;
 
     public static final int NETWORK_ID = 15;
 
     private TradeInventory inventory;
-    private final List<TradeInventoryRecipe> recipes = new ArrayList<>();
-    private int tradeTier = 0;
-    private boolean willing = true;
+    // Initialized in initEntity because Entity invokes that method from its constructor.
+    private List<TradeInventoryRecipe> recipes;
+    private int tradeTier;
+    private boolean willing;
     private int foodPoints;
     private int foodPickupTicks;
     private int routineSearchTicks;
@@ -64,6 +75,9 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     private int carrotSeeds;
     private int potatoSeeds;
     private int beetrootSeeds;
+    private Vector3 jobSite;
+    private Vector3 openedDoorPosition;
+    private boolean sleepingRoutine;
 
     public EntityVillagerV1(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -102,6 +116,12 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         super.initEntity();
 
         this.inventory = new TradeInventory(this);
+        this.recipes = new ArrayList<>();
+        this.tradeTier = Math.max(0, this.namedTag.getInt("TradeTier"));
+        this.willing = !this.namedTag.contains("Willing") || this.namedTag.getBoolean("Willing");
+        if (this.namedTag.getBoolean("HasJobSite")) {
+            this.jobSite = new Vector3(this.namedTag.getInt("JobSiteX"), this.namedTag.getInt("JobSiteY"), this.namedTag.getInt("JobSiteZ"));
+        }
         this.foodPoints = Math.min(12, Math.max(0, this.namedTag.getInt("FoodPoints")));
         this.wheatSeeds = Math.max(0, this.namedTag.getInt("WheatSeeds"));
         this.carrotSeeds = Math.max(0, this.namedTag.getInt("CarrotSeeds"));
@@ -122,6 +142,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
         if (!this.namedTag.contains("Profession")) {
             this.setProfession(PROFESSION_GENERIC);
+        } else {
+            this.updateProfessionMetadata();
         }
     }
 
@@ -131,11 +153,59 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
     public void setProfession(int profession) {
         this.namedTag.putInt("Profession", profession);
+        this.updateProfessionMetadata();
         this.routineSearchTicks = 0;
         this.routineTarget = null;
         this.farmSearchTicks = 0;
         this.farmTarget = null;
         this.farmPlantingTarget = false;
+        this.sleepingRoutine = false;
+        this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
+    }
+
+    /** Applies the correct Bedrock clothing variant when a villager receives a profession. */
+    private void updateProfessionMetadata() {
+        int profession = this.getProfession();
+        if (this.getNetworkId() == EntityVillager.NETWORK_ID) {
+            this.setDataProperty(new IntEntityData(DATA_VARIANT, this.getModernSkinVariant(profession)), false);
+            this.setDataProperty(new IntEntityData(DATA_MARK_VARIANT, this.getModernProfessionId(profession)), false);
+        } else {
+            this.setDataProperty(new IntEntityData(DATA_VARIANT, this.getLegacySkinVariant(profession)), false);
+        }
+    }
+
+    private int getLegacySkinVariant(int profession) {
+        switch (profession) {
+            case PROFESSION_FARMER: case PROFESSION_FISHERMAN: case PROFESSION_SHEPHERD: case PROFESSION_FLETCHER: return 0;
+            case PROFESSION_LIBRARIAN: case PROFESSION_CARTOGRAPHER: return 1;
+            case PROFESSION_PRIEST: return 2;
+            case PROFESSION_BLACKSMITH: case PROFESSION_ARMORER: case PROFESSION_WEAPONSMITH: case PROFESSION_TOOLSMITH: return 3;
+            case PROFESSION_BUTCHER: case PROFESSION_LEATHERWORKER: return 4;
+            default: return 5;
+        }
+    }
+
+    private int getModernSkinVariant(int profession) {
+        return this.getLegacySkinVariant(profession);
+    }
+
+    private int getModernProfessionId(int profession) {
+        switch (profession) {
+            case PROFESSION_FARMER: return 0;
+            case PROFESSION_FISHERMAN: return 1;
+            case PROFESSION_SHEPHERD: return 2;
+            case PROFESSION_FLETCHER: return 3;
+            case PROFESSION_LIBRARIAN: return 4;
+            case PROFESSION_CARTOGRAPHER: return 5;
+            case PROFESSION_PRIEST: return 6;
+            case PROFESSION_ARMORER: return 7;
+            case PROFESSION_WEAPONSMITH: return 8;
+            case PROFESSION_TOOLSMITH: return 9;
+            case PROFESSION_BUTCHER: return 10;
+            case PROFESSION_LEATHERWORKER: return 11;
+            case PROFESSION_MASON: return 12;
+            default: return 0;
+        }
     }
 
     @Override
