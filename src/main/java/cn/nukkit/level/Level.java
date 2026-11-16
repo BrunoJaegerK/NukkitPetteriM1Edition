@@ -371,7 +371,8 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
             setRainTime(ThreadLocalRandom.current().nextInt(168000) + 12000);
         }
 
-        this.thundering = this.provider.isThundering();
+        // A saved thunder flag without rain is an invalid weather combination.
+        this.thundering = this.raining && this.provider.isThundering();
         this.thunderTime = this.provider.getThunderTime();
         if (this.thunderTime <= 0) {
             setThunderTime(ThreadLocalRandom.current().nextInt(168000) + 12000);
