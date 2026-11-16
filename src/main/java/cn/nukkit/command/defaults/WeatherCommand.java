@@ -72,6 +72,10 @@ public class WeatherCommand extends VanillaCommand {
                         new TranslationContainer("commands.weather.clear"));
                 return true;
             case "rain":
+                // The rain command selects rain, not the thunderstorm variant.
+                if (!level.setThundering(false)) {
+                    return true;
+                }
                 level.setRaining(true);
                 level.setRainTime(seconds * 20);
                 Command.broadcastCommandMessage(sender,
