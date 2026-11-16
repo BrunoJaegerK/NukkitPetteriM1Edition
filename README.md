@@ -8,28 +8,12 @@ See the [wiki](https://github.com/PetteriM1/NukkitPetteriM1Edition/wiki) for mor
 
 ## Enhanced vanilla mob AI
 
-This fork includes dedicated AI improvements for the following Bedrock entities:
-
-- **Ender Dragon:** target acquisition, orbiting and strafing, close charge passes, ranged fireball attacks, crystal healing, and non-colliding flight movement.
-- **Enderman:** player-stare anger, pursuit teleports, water/rain/fire escape, Endermite targeting, and vanilla-style block pickup and placement.
-- **Shulker:** attachment and peek metadata, defensive shell behavior, projectile attacks with levitation, safe relocation, and retaliation against attackers.
-- **Villagers:** daily work, meeting and rest routines, hostile-mob avoidance, baby following, food pickup/sharing, wheat-to-bread crafting, breeding, sleeping state, rain shelter, wooden-door opening/closing, and farmer crop harvesting/replanting.
-- **Villager professions:** unemployed villagers can claim nearby workstations (composter, barrel, loom, fletching table, lectern, cartography table, brewing stand, blast furnace, grindstone, smithing table, smoker, cauldron and stonecutter). Their Bedrock profession/skin metadata updates immediately; villagers without trades can lose the profession if their claimed workstation is removed.
-- **Villager infection:** zombies and husks only convert villagers they kill, using the vanilla difficulty chances (0% Easy, 50% Normal, 100% Hard), and preserve the villager's NBT at the same location.
+This fork adds targeted Bedrock-style behavior improvements for the Ender Dragon, Endermen, Shulkers, villagers, and natural mob spawning. The sections below describe the implemented behavior and configuration.
 
 ### Required settings
 
 - Enable the server's `mob-ai` setting so entity AI can run.
 - Keep the `mobGriefing` game rule enabled if you want Endermen to move blocks and farmer villagers to harvest and plant crops.
-
-### New cancellable events
-
-Plugins can listen for these events to control the new block interactions:
-
-- `EndermanBlockPlaceEvent`
-- `VillagerHarvestEvent`
-- `VillagerPlantEvent`
-- `VillagerDoorOpenEvent`
 
 ## Vanilla natural mob spawning
 
@@ -54,7 +38,7 @@ These changes concern natural mob spawning and hostile-mob classification. They 
 - Improve anger duration, timing, and persistence, including pursuit teleports.
 - Retry teleports at safe nearby positions and require sufficient clearance before teleporting.
 - Escape fire, water, and rain; target nearby Endermites.
-- Pick up and place supported vanilla blocks, including dandelions, with a cancellable placement event.
+- Pick up and place supported vanilla blocks, including dandelions.
 
 ## Shulker behavior
 
@@ -66,11 +50,12 @@ These changes concern natural mob spawning and hostile-mob classification. They 
 ## Villager behavior and persistence
 
 - Improve daily work, meeting, and rest routines, including pathfinding to points of interest and reserving beds/workstations.
-- Improve workstation claiming, profession metadata/skin updates, and release of job sites or professions when the workstation is no longer available.
+- Support workstation claiming for the relevant professions: composter, barrel, loom, fletching table, lectern, cartography table, brewing stand, blast furnace, grindstone, smithing table, smoker, cauldron, and stonecutter.
+- Update Bedrock profession/skin metadata when a workstation is claimed, and release job sites or professions when the workstation is no longer available.
 - Improve farmer inventory accounting, crop harvesting/replanting, and safe planting checks.
 - Support food pickup, sharing surplus food, wheat-to-bread crafting, and food-based breeding; consume stored food across breeding cycles and preserve excess stock.
 - Persist farm stock and trade state, clamp trade tiers, and handle world-height edge cases.
-- Improve hostile-threat avoidance, panic behavior, rain shelter, door navigation, and baby villager following.
+- Improve hostile-threat avoidance, panic behavior, rain shelter, wooden-door navigation, and baby villager following.
 
 ## Zombie and husk interactions
 
@@ -80,7 +65,7 @@ These changes concern natural mob spawning and hostile-mob classification. They 
 
 ## Plugin events
 
-The following cancellable events are available for integrations that need to control new mob block interactions:
+The following cancellable events are available for integrations that need to control mob block interactions:
 
 - `EndermanBlockPlaceEvent`: called before an Enderman places a carried block.
 - `VillagerHarvestEvent`: called before a farmer villager harvests crops.
