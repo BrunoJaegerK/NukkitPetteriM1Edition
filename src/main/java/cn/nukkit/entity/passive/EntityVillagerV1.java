@@ -65,6 +65,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     private int tradeTier;
     private boolean willing;
     private int foodPoints;
+    private int wheatItems;
     private int foodPickupTicks;
     private int routineSearchTicks;
     private Vector3 routineTarget;
@@ -123,6 +124,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             this.jobSite = new Vector3(this.namedTag.getInt("JobSiteX"), this.namedTag.getInt("JobSiteY"), this.namedTag.getInt("JobSiteZ"));
         }
         this.foodPoints = Math.min(12, Math.max(0, this.namedTag.getInt("FoodPoints")));
+        this.wheatItems = Math.max(0, this.namedTag.getInt("WheatItems"));
         this.wheatSeeds = Math.max(0, this.namedTag.getInt("WheatSeeds"));
         this.carrotSeeds = Math.max(0, this.namedTag.getInt("CarrotSeeds"));
         this.potatoSeeds = Math.max(0, this.namedTag.getInt("PotatoSeeds"));
@@ -742,7 +744,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     @Override
     public boolean entityBaseTick(int tickDiff) {
         boolean updated = super.entityBaseTick(tickDiff);
-        if (this.foodPoints >= 12 && !this.isBaby() && !this.isInLove() && !this.isInLoveCooldown()) {
+        if (this.foodPoints >= 12 && this.willing && !this.isBaby() && !this.isInLove() && !this.isInLoveCooldown()) {
             this.foodPoints = 0;
             this.setInLove();
             this.namedTag.putInt("FoodPoints", this.foodPoints);
@@ -960,6 +962,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             int count = drop.getCount();
             if (cropId == BlockID.WHEAT_BLOCK && drop.getId() == Item.WHEAT_SEEDS) {
                 this.wheatSeeds += count;
+            } else if (cropId == BlockID.WHEAT_BLOCK && drop.getId() == Item.WHEAT) {
+                this.wheatItems += count;
             } else if (cropId == BlockID.CARROT_BLOCK && drop.getId() == Item.CARROT) {
                 this.carrotSeeds += count;
                 this.foodPoints = Math.min(12, this.foodPoints + count);
@@ -973,6 +977,11 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             } else {
                 worldDrops.add(drop);
             }
+        }
+
+        while (this.wheatItems >= 3 && this.foodPoints <= 8) {
+            this.wheatItems -= 3;
+            this.foodPoints = Math.min(12, this.foodPoints + 4);
         }
 
         boolean replant = false;
@@ -1018,11 +1027,12 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         this.namedTag.putInt("CarrotSeeds", this.carrotSeeds);
         this.namedTag.putInt("PotatoSeeds", this.potatoSeeds);
         this.namedTag.putInt("BeetrootSeeds", this.beetrootSeeds);
-        if (this.foodPoints >= 12 && !this.isInLoveCooldown() && !this.isInLove()) {
+        if (this.foodPoints >= 12 && this.willing && !this.isInLoveCooldown() && !this.isInLove()) {
             this.foodPoints = 0;
             this.setInLove();
         }
         this.namedTag.putInt("FoodPoints", this.foodPoints);
+        this.namedTag.putInt("WheatItems", this.wheatItems);
         this.farmTarget = null;
         this.farmSearchTicks = 0;
     }
@@ -1037,9 +1047,16 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 continue;
             }
 
-            // Four food points are transferred as one bread item the recipient can pick up.
-            this.level.dropItem(this, Item.get(Item.BREAD, 0, 1));
+            // Transfer food points directly so the giver cannot immediately pick up its own share.
             this.foodPoints -= 4;
+            other.foodPoints = Math.min(12, other.foodPoints + 4);
+            this.namedTag.putInt("FoodPoints", this.foodPoints);
+            other.namedTag.putInt("FoodPoints", other.foodPoints);
+            if (other.foodPoints >= 12 && other.willing && !other.isInLove() && !other.isInLoveCooldown()) {
+                other.foodPoints = 0;
+                other.namedTag.putInt("FoodPoints", 0);
+                other.setInLove();
+            }
             return;
         }
     }
@@ -1058,13 +1075,24 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                 continue;
             }
             int value = getBreedingFoodValue(stack);
-            if (value <= 0) {
+            boolean wheat = stack.getId() == Item.WHEAT && this.wheatItems < 45;
+            if (value <= 0 && !wheat) {
                 continue;
             }
             int itemCount = Math.max(1, stack.getCount());
-            int itemsNeeded = Math.max(1, (12 - this.foodPoints + value - 1) / value);
-            int consumed = Math.min(itemCount, itemsNeeded);
-            this.foodPoints += value * consumed;
+            int consumed;
+            if (wheat) {
+                consumed = Math.min(itemCount, 45 - this.wheatItems);
+                this.wheatItems += consumed;
+                while (this.wheatItems >= 3 && this.foodPoints <= 8) {
+                    this.wheatItems -= 3;
+                    this.foodPoints = Math.min(12, this.foodPoints + 4);
+                }
+            } else {
+                int itemsNeeded = Math.max(1, (12 - this.foodPoints + value - 1) / value);
+                consumed = Math.min(itemCount, itemsNeeded);
+                this.foodPoints += value * consumed;
+            }
 
             if (itemCount > consumed) {
                 Item remainder = Item.get(stack.getId(), stack.getDamage(), itemCount - consumed);
@@ -1072,10 +1100,12 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             }
             dropped.close();
 
-            if (this.foodPoints >= 12) {
+            if (this.foodPoints >= 12 && this.willing) {
                 this.foodPoints = 0;
                 this.setInLove();
             }
+            this.namedTag.putInt("FoodPoints", this.foodPoints);
+            this.namedTag.putInt("WheatItems", this.wheatItems);
             return;
         }
     }
@@ -1084,6 +1114,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     public void saveNBT() {
         super.saveNBT();
         this.namedTag.putInt("FoodPoints", this.foodPoints);
+        this.namedTag.putInt("WheatItems", this.wheatItems);
         this.namedTag.putInt("TradeTier", this.tradeTier);
         this.namedTag.putBoolean("Willing", this.willing);
         if (this.jobSite != null) {
