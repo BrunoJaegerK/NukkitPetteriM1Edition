@@ -462,6 +462,8 @@ public class EntityEnderman extends EntityWalkingMob {
             // wandering/target selector restart movement until the player looks away.
             this.target = null;
             this.followTarget = null;
+            this.motionX = 0;
+            this.motionZ = 0;
             this.stayTime = Math.max(this.stayTime, 2);
             return;
         }
