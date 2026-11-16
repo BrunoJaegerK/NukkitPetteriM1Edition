@@ -120,7 +120,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
         this.inventory = new TradeInventory(this);
         this.recipes = new ArrayList<>();
-        this.tradeTier = Math.max(0, this.namedTag.getInt("TradeTier"));
+        this.tradeTier = Math.min(4, Math.max(0, this.namedTag.getInt("TradeTier")));
         this.setDataProperty(new IntEntityData(DATA_TRADE_TIER, this.tradeTier), false);
         this.setDataProperty(new IntEntityData(DATA_MAX_TRADE_TIER, 4), false);
         this.willing = !this.namedTag.contains("Willing") || this.namedTag.getBoolean("Willing");
@@ -767,7 +767,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     }
 
     public void setTradeTier(int tier) {
-        this.tradeTier = Math.max(0, tier);
+        this.tradeTier = Math.min(4, Math.max(0, tier));
         this.namedTag.putInt("TradeTier", this.tradeTier);
         this.setDataProperty(new IntEntityData(DATA_TRADE_TIER, this.tradeTier));
     }
@@ -1276,6 +1276,10 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         this.namedTag.putInt("FoodPoints", this.foodPoints);
         this.namedTag.putInt("WheatItems", this.wheatItems);
         this.namedTag.putInt("BeetrootItems", this.beetrootItems);
+        this.namedTag.putInt("WheatSeeds", this.wheatSeeds);
+        this.namedTag.putInt("CarrotSeeds", this.carrotSeeds);
+        this.namedTag.putInt("PotatoSeeds", this.potatoSeeds);
+        this.namedTag.putInt("BeetrootSeeds", this.beetrootSeeds);
         this.namedTag.putInt("TradeTier", this.tradeTier);
         this.namedTag.putBoolean("Willing", this.willing);
         this.namedTag.putCompound("Offers", this.getOffers());
