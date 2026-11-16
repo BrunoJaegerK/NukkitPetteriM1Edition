@@ -500,7 +500,10 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         int[] wantedBlocks = null;
 
         if (this.level.isRaining()) {
-            wantedBlocks = new int[]{BlockID.BED_BLOCK};
+            this.sleepingRoutine = false;
+            this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
+            this.routineTarget = this.findNearbyShelter();
+            return;
         } else if (time >= 2000 && time < 9000) {
             switch (this.getProfession()) {
                 case PROFESSION_FARMER:
@@ -569,6 +572,46 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
         }
         this.routineTarget = wantedBlocks == null ? null : this.findNearbyRoutineBlock(wantedBlocks);
+    }
+
+    /** Finds a nearby dry standing position under a solid roof during rain. */
+    private Vector3 findNearbyShelter() {
+        int centerX = this.getFloorX();
+        int centerY = this.getFloorY();
+        int centerZ = this.getFloorZ();
+        double nearestDistance = 64.0;
+        Vector3 nearest = null;
+        for (int z = centerZ - 8; z <= centerZ + 8; z++) {
+            for (int x = centerX - 8; x <= centerX + 8; x++) {
+                FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+                if (chunk == null || !chunk.isGenerated()) {
+                    continue;
+                }
+                int localX = x & 0x0f;
+                int localZ = z & 0x0f;
+                int minY = Math.max(this.level.getMinBlockY() + 1, centerY - 2);
+                int maxY = Math.min(this.level.getMaxBlockY() - 2, centerY + 2);
+                for (int y = minY; y <= maxY; y++) {
+                    int support = chunk.getBlockId(localX, y - 1, localZ);
+                    int feet = chunk.getBlockId(localX, y, localZ);
+                    int head = chunk.getBlockId(localX, y + 1, localZ);
+                    int roof = chunk.getBlockId(localX, y + 2, localZ);
+                    if (!Block.isBlockSolidById(support) || feet != Block.AIR || head != Block.AIR
+                            || !Block.isBlockSolidById(roof)) {
+                        continue;
+                    }
+                    double dx = x + 0.5 - this.x;
+                    double dy = y - this.y;
+                    double dz = z + 0.5 - this.z;
+                    double distance = dx * dx + dy * dy + dz * dz;
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        nearest = new Vector3(x + 0.5, y, z + 0.5);
+                    }
+                }
+            }
+        }
+        return nearest;
     }
 
     private Vector3 findNearbyRoutineBlock(int[] wantedBlocks) {
