@@ -77,6 +77,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     private int potatoSeeds;
     private int beetrootSeeds;
     private Vector3 jobSite;
+    private Vector3 jobSiteBlock;
     private Vector3 openedDoorPosition;
     private boolean sleepingRoutine;
 
@@ -125,6 +126,9 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         if (this.namedTag.getBoolean("HasJobSite")) {
             this.jobSite = new Vector3(this.namedTag.getInt("JobSiteX"), this.namedTag.getInt("JobSiteY"), this.namedTag.getInt("JobSiteZ"));
         }
+        if (this.namedTag.getBoolean("HasJobSiteBlock")) {
+            this.jobSiteBlock = new Vector3(this.namedTag.getInt("JobSiteBlockX"), this.namedTag.getInt("JobSiteBlockY"), this.namedTag.getInt("JobSiteBlockZ"));
+        }
         this.foodPoints = Math.min(12, Math.max(0, this.namedTag.getInt("FoodPoints")));
         this.wheatItems = Math.max(0, this.namedTag.getInt("WheatItems"));
         this.wheatSeeds = Math.max(0, this.namedTag.getInt("WheatSeeds"));
@@ -158,6 +162,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     public void setProfession(int profession) {
         this.namedTag.putInt("Profession", profession);
         this.jobSite = null;
+        this.jobSiteBlock = null;
         this.updateProfessionMetadata();
         this.routineSearchTicks = 0;
         this.routineTarget = null;
@@ -383,7 +388,11 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         int x = this.openedDoorPosition.getFloorX();
         int y = this.openedDoorPosition.getFloorY();
         int z = this.openedDoorPosition.getFloorZ();
-        Block block = this.level.getBlock(x, y, z);
+        FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+        if (chunk == null || !chunk.isGenerated()) {
+            return;
+        }
+        Block block = this.level.getBlock(chunk, x, y, z, false);
         if (block instanceof BlockDoor && !(block instanceof BlockCopperDoor)
                 && block.getId() != BlockID.IRON_DOOR_BLOCK) {
             BlockDoor door = (BlockDoor) block;
@@ -402,6 +411,9 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         int centerY = this.routineTarget.getFloorY();
         int centerZ = this.routineTarget.getFloorZ();
         int selectedProfession = PROFESSION_GENERIC;
+        int selectedX = 0;
+        int selectedY = 0;
+        int selectedZ = 0;
         double nearestSite = Double.MAX_VALUE;
         for (int y = centerY - 1; y <= centerY + 1; y++) {
             for (int z = centerZ - 2; z <= centerZ + 2; z++) {
@@ -422,6 +434,9 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                     if (distance < nearestSite) {
                         nearestSite = distance;
                         selectedProfession = profession;
+                        selectedX = x;
+                        selectedY = y;
+                        selectedZ = z;
                     }
                 }
             }
@@ -432,6 +447,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         Vector3 claimedStand = this.routineTarget;
         this.setProfession(selectedProfession);
         this.jobSite = new Vector3(claimedStand.x, claimedStand.y, claimedStand.z);
+        this.jobSiteBlock = new Vector3(selectedX, selectedY, selectedZ);
         return true;
     }
 
@@ -468,6 +484,18 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
      */
     private void updateRoutineTarget() {
         this.routineSearchTicks = 200;
+        if (this.jobSiteBlock != null && this.getProfession() != PROFESSION_GENERIC && this.recipes.isEmpty()) {
+            int jobX = this.jobSiteBlock.getFloorX();
+            int jobY = this.jobSiteBlock.getFloorY();
+            int jobZ = this.jobSiteBlock.getFloorZ();
+            FullChunk jobChunk = this.level.getChunkIfLoaded(jobX >> 4, jobZ >> 4);
+            if (jobChunk != null && jobChunk.isGenerated()) {
+                int jobBlockId = jobChunk.getBlockId(jobX & 0x0f, jobY, jobZ & 0x0f);
+                if (this.getProfessionForWorkstation(jobBlockId) != this.getProfession()) {
+                    this.setProfession(PROFESSION_GENERIC);
+                }
+            }
+        }
         long time = Math.floorMod((long) this.level.getTime(), 24000L);
         int[] wantedBlocks = null;
 
@@ -1151,6 +1179,14 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             this.namedTag.putInt("JobSiteZ", this.jobSite.getFloorZ());
         } else {
             this.namedTag.putBoolean("HasJobSite", false);
+        }
+        if (this.jobSiteBlock != null) {
+            this.namedTag.putBoolean("HasJobSiteBlock", true);
+            this.namedTag.putInt("JobSiteBlockX", this.jobSiteBlock.getFloorX());
+            this.namedTag.putInt("JobSiteBlockY", this.jobSiteBlock.getFloorY());
+            this.namedTag.putInt("JobSiteBlockZ", this.jobSiteBlock.getFloorZ());
+        } else {
+            this.namedTag.putBoolean("HasJobSiteBlock", false);
         }
     }
 
