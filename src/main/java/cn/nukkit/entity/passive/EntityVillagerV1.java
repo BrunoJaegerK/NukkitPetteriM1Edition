@@ -119,6 +119,8 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         this.inventory = new TradeInventory(this);
         this.recipes = new ArrayList<>();
         this.tradeTier = Math.max(0, this.namedTag.getInt("TradeTier"));
+        this.setDataProperty(new IntEntityData(DATA_TRADE_TIER, this.tradeTier), false);
+        this.setDataProperty(new IntEntityData(DATA_MAX_TRADE_TIER, 4), false);
         this.willing = !this.namedTag.contains("Willing") || this.namedTag.getBoolean("Willing");
         if (this.namedTag.getBoolean("HasJobSite")) {
             this.jobSite = new Vector3(this.namedTag.getInt("JobSiteX"), this.namedTag.getInt("JobSiteY"), this.namedTag.getInt("JobSiteZ"));
@@ -390,7 +392,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     }
 
     private boolean tryAcquireProfessionAtRoutineTarget() {
-        if (this.routineTarget == null || this.getProfession() != PROFESSION_GENERIC) {
+        if (this.routineTarget == null || this.getProfession() != PROFESSION_GENERIC || !this.recipes.isEmpty()) {
             return false;
         }
         int centerX = this.routineTarget.getFloorX();
@@ -518,7 +520,9 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         }
 
         this.sleepingRoutine = !this.level.isRaining() && (time >= 13000 || time < 1000);
-        this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
+        if (!this.sleepingRoutine) {
+            this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
+        }
         this.routineTarget = wantedBlocks == null ? null : this.findNearbyRoutineBlock(wantedBlocks);
     }
 
@@ -666,6 +670,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     public void setTradeTier(int tier) {
         this.tradeTier = Math.max(0, tier);
         this.namedTag.putInt("TradeTier", this.tradeTier);
+        this.setDataProperty(new IntEntityData(DATA_TRADE_TIER, this.tradeTier));
     }
 
     public int getTradeTier() {
@@ -1117,6 +1122,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         this.namedTag.putInt("WheatItems", this.wheatItems);
         this.namedTag.putInt("TradeTier", this.tradeTier);
         this.namedTag.putBoolean("Willing", this.willing);
+        this.namedTag.putCompound("Offers", this.getOffers());
         if (this.jobSite != null) {
             this.namedTag.putBoolean("HasJobSite", true);
             this.namedTag.putInt("JobSiteX", this.jobSite.getFloorX());
