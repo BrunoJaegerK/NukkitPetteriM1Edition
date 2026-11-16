@@ -1173,7 +1173,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             }
 
             // Share surplus food points without spawning an item the giver could immediately reclaim.
-            int transferred = Math.min(8, this.foodPoints - 3);
+            int transferred = Math.min(8, this.foodPoints - 1);
             if (transferred <= 0) {
                 continue;
             }
