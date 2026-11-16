@@ -9,6 +9,7 @@ import cn.nukkit.block.BlockID;
 import cn.nukkit.entity.Entity;
 import cn.nukkit.entity.EntityCreature;
 import cn.nukkit.entity.data.IntEntityData;
+import cn.nukkit.entity.data.IntPositionEntityData;
 import cn.nukkit.entity.item.EntityItem;
 import cn.nukkit.entity.mob.EntityWitch;
 import cn.nukkit.entity.mob.EntityDrowned;
@@ -83,6 +84,10 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
     private Vector3 openedDoorPosition;
     private boolean sleepingRoutine;
     private Vector3 lastSleepParticleTarget;
+    private Vector3 routinePoiBlock;
+    private Vector3 sleepingBedPosition;
+    private Vector3 sleepingReturnPosition;
+    private boolean workingRoutine;
 
     public EntityVillagerV1(FullChunk chunk, CompoundTag nbt) {
         super(chunk, nbt);
@@ -174,7 +179,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         this.farmTarget = null;
         this.farmPlantingTarget = false;
         this.sleepingRoutine = false;
-        this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
+        this.setGenericFlag(DATA_FLAG_SLEEPING, false);
     }
 
     /** Applies Bedrock villager metadata. Modern villager_v2 uses variant for profession
@@ -295,7 +300,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
         if (threat != null) {
             this.sleepingRoutine = false;
-            this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
+            this.setGenericFlag(DATA_FLAG_SLEEPING, false);
             double dx = this.x - threat.x;
             double dz = this.z - threat.z;
             double length = Math.sqrt(dx * dx + dz * dz);
@@ -345,18 +350,19 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                     return;
                 }
                 if (this.sleepingRoutine && this.distanceSquared(this.routineTarget) <= 2.25) {
-                    this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, true);
-                    this.stayTime = 200;
+                    this.beginRoutineSleep();
                     return;
                 }
                 if (!this.sleepingRoutine && this.jobSite != null
                         && this.routineTarget.equals(this.jobSite)
                         && this.distanceSquared(this.routineTarget) <= 2.25) {
                     // Remain at the claimed workstation for the work portion of the day.
-                    this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
+                    this.workingRoutine = true;
+                    this.setGenericFlag(DATA_FLAG_SLEEPING, false);
                     this.stayTime = 200;
                     return;
                 }
+                this.workingRoutine = false;
                 this.followTarget = null;
                 // Keep the route finder aimed at the current routine destination. Replacing
                 // its next waypoint with the final target every tick makes villagers walk
@@ -538,7 +544,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
      * searched only every 10 seconds and only in already-loaded chunks.
      */
     private void updateRoutineTarget() {
-        this.routineSearchTicks = 200;
+        this.routineSearchTicks = 20;
         if (this.jobSiteBlock != null && this.getProfession() != PROFESSION_GENERIC) {
             int jobX = this.jobSiteBlock.getFloorX();
             int jobY = this.jobSiteBlock.getFloorY();
@@ -556,7 +562,10 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
         if (this.level.isRaining()) {
             this.sleepingRoutine = false;
-            this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
+            this.workingRoutine = false;
+            this.wakeFromRoutineSleep();
+            this.setGenericFlag(DATA_FLAG_SLEEPING, false);
+            this.routinePoiBlock = null;
             this.routineTarget = this.findNearbyShelter();
             return;
         } else if (time >= 2000 && time < 9000) {
@@ -624,8 +633,11 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
 
         this.sleepingRoutine = !this.level.isRaining() && (time >= 13000 || time < 1000);
         if (!this.sleepingRoutine) {
-            this.setDataFlag(DATA_FLAGS, DATA_FLAG_SLEEPING, false);
+            this.workingRoutine = false;
+            this.wakeFromRoutineSleep();
+            this.setGenericFlag(DATA_FLAG_SLEEPING, false);
         }
+        this.routinePoiBlock = null;
         Vector3 nextTarget = wantedBlocks == null ? null : this.findNearbyRoutineBlock(wantedBlocks);
         // A claimed workstation is the villager's home POI: prefer it over another
         // matching block so the villager returns to the station it actually claimed.
@@ -638,6 +650,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
             if (siteChunk != null && siteChunk.isGenerated()
                     && this.getProfessionForWorkstation(siteChunk.getBlockId(siteX & 0x0f, siteY, siteZ & 0x0f)) == this.getProfession()) {
                 nextTarget = new Vector3(this.jobSite.x, this.jobSite.y, this.jobSite.z);
+                this.routinePoiBlock = new Vector3(siteX, siteY, siteZ);
             }
         }
         this.routineTarget = nextTarget;
@@ -696,6 +709,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         int centerY = this.getFloorY();
         int centerZ = this.getFloorZ();
         int radius = 12;
+        this.routinePoiBlock = null;
         double nearestDistance = Double.MAX_VALUE;
         Vector3 nearest = null;
         Entity[] nearbyEntities = this.level.getNearbyEntities(this.boundingBox.grow(16, 8, 16), this);
@@ -716,6 +730,12 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                     if (!containsBlock(wantedBlocks, blockId)) {
                         continue;
                     }
+                    if (blockId == BlockID.BED_BLOCK) {
+                        Block poi = this.level.getBlock(candidate, x, y, z, false);
+                        if ((poi.getDamage() & 0x08) == 0) {
+                            continue;
+                        }
+                    }
 
                     Vector3 standPosition = this.findRoutineStandPosition(x, y, z);
                     if (standPosition == null || this.isRoutineBlockReserved(nearbyEntities,
@@ -730,6 +750,7 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
                     if (distance < nearestDistance) {
                         nearestDistance = distance;
                         nearest = standPosition;
+                        this.routinePoiBlock = new Vector3(x, y, z);
                     }
                 }
             }
@@ -940,6 +961,9 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         if (this.routineSearchTicks > 0) {
             this.routineSearchTicks = Math.max(0, this.routineSearchTicks - Math.max(0, tickDiff));
         }
+        if (this.sleepingBedPosition != null && !this.isVillagerSleepTime()) {
+            this.wakeFromRoutineSleep();
+        }
         if (this.farmSearchTicks > 0) {
             this.farmSearchTicks = Math.max(0, this.farmSearchTicks - Math.max(0, tickDiff));
         }
@@ -973,6 +997,66 @@ public class EntityVillagerV1 extends EntityWalkingAnimal implements InventoryHo
         }
         this.closeOpenedDoorIfPassed();
         return updated;
+    }
+
+    private boolean isVillagerSleepTime() {
+        long time = Math.floorMod((long) this.level.getTime(), 24000L);
+        return !this.level.isRaining() && (time >= 13000 || time < 1000);
+    }
+
+    /** Enter the bed using the Bedrock sleeping-position metadata. */
+    private void beginRoutineSleep() {
+        if (this.sleepingBedPosition != null || this.routinePoiBlock == null) {
+            this.stayTime = 200;
+            return;
+        }
+        int bedX = this.routinePoiBlock.getFloorX();
+        int bedY = this.routinePoiBlock.getFloorY();
+        int bedZ = this.routinePoiBlock.getFloorZ();
+        FullChunk bedChunk = this.level.getChunkIfLoaded(bedX >> 4, bedZ >> 4);
+        if (bedChunk == null || !bedChunk.isGenerated()
+                || bedChunk.getBlockId(bedX & 0x0f, bedY, bedZ & 0x0f) != BlockID.BED_BLOCK) {
+            this.sleepingRoutine = false;
+            this.routineTarget = null;
+            this.routinePoiBlock = null;
+            this.stayTime = 0;
+            return;
+        }
+        this.sleepingReturnPosition = this.routineTarget == null
+                ? new Vector3(this.x, this.y, this.z) : this.routineTarget.clone();
+        this.sleepingBedPosition = new Vector3(bedX, bedY, bedZ);
+        this.target = null;
+        this.followTarget = null;
+        this.motionX = 0;
+        this.motionY = 0;
+        this.motionZ = 0;
+        this.setPosition(new Vector3(bedX + 0.5, bedY + 0.5, bedZ + 0.5));
+        this.setDataProperty(new IntPositionEntityData(DATA_PLAYER_BED_POSITION, bedX, bedY, bedZ));
+        this.setGenericFlag(DATA_FLAG_SLEEPING, true);
+        this.stayTime = 200;
+        this.updateMovement();
+    }
+
+    /** Wake at dawn or if the bed becomes unavailable. */
+    private void wakeFromRoutineSleep() {
+        if (this.sleepingBedPosition == null) {
+            this.setGenericFlag(DATA_FLAG_SLEEPING, false);
+            return;
+        }
+        this.setGenericFlag(DATA_FLAG_SLEEPING, false);
+        this.removeDataProperty(DATA_PLAYER_BED_POSITION);
+        Vector3 returnPosition = this.sleepingReturnPosition;
+        this.sleepingBedPosition = null;
+        this.sleepingReturnPosition = null;
+        this.motionX = 0;
+        this.motionY = 0;
+        this.motionZ = 0;
+        if (returnPosition != null && !this.closed) {
+            this.setPosition(returnPosition);
+        }
+        this.stayTime = 0;
+        this.routineSearchTicks = 0;
+        this.updateMovement();
     }
 
     private boolean isFarmerWorkTime() {
