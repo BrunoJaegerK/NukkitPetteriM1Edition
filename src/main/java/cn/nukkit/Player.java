@@ -2418,10 +2418,17 @@ public class Player extends EntityHuman implements CommandSender, InventoryHolde
                 this.inventory != null && this.inventory.getHelmetFast().getId() != (255 - BlockID.CARVED_PUMPKIN)) {
 
             // Endermen must be visible to the player's eyes; do not anger them through walls.
-            for (Block block : this.getLineOfSight(64)) {
-                if (block != null && block.getId() != Block.AIR) {
-                    return;
+            // BlockIterator can miss the starting voxel for positions exactly on a
+            // block boundary. Treat that invalid ray as no line of sight instead of
+            // allowing an exception to abort the entire level tick.
+            try {
+                for (Block block : this.getLineOfSight(64)) {
+                    if (block != null && block.getId() != Block.AIR) {
+                        return;
+                    }
                 }
+            } catch (IllegalStateException ignored) {
+                return;
             }
 
             AxisAlignedBB aab = new SimpleAxisAlignedBB(
