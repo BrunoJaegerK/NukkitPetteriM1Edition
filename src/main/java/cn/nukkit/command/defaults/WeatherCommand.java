@@ -64,8 +64,9 @@ public class WeatherCommand extends VanillaCommand {
 
         switch (weather) {
             case "clear":
-                level.setRaining(false);
-                level.setThundering(false);
+                if (!level.setRaining(false) || !level.setThundering(false)) {
+                    return true;
+                }
                 level.setRainTime(seconds * 20);
                 level.setThunderTime(seconds * 20);
                 Command.broadcastCommandMessage(sender,
@@ -76,13 +77,17 @@ public class WeatherCommand extends VanillaCommand {
                 if (!level.setThundering(false)) {
                     return true;
                 }
-                level.setRaining(true);
+                if (!level.setRaining(true)) {
+                    return true;
+                }
                 level.setRainTime(seconds * 20);
                 Command.broadcastCommandMessage(sender,
                         new TranslationContainer("commands.weather.rain"));
                 return true;
             case "thunder":
-                level.setThundering(true);
+                if (!level.setThundering(true)) {
+                    return true;
+                }
                 level.setRainTime(seconds * 20);
                 level.setThunderTime(seconds * 20);
                 Command.broadcastCommandMessage(sender,
