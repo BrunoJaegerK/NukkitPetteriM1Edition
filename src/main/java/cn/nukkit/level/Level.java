@@ -1002,11 +1002,11 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
                     ObjectIterator<? extends Long2ObjectMap.Entry<? extends FullChunk>> iter = fastChunks.long2ObjectEntrySet().fastIterator();
                     while (iter.hasNext()) {
                         Long2ObjectMap.Entry<? extends FullChunk> entry = iter.next();
-                        performThunder(entry.getLongKey(), entry.getValue());
+                        performThunder(entry.getValue());
                     }
                 } else {
                     for (Map.Entry<Long, ? extends FullChunk> entry : chunks.entrySet()) {
-                        performThunder(entry.getKey(), entry.getValue());
+                        performThunder(entry.getValue());
                     }
                 }
             }
@@ -1108,7 +1108,7 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
         }
     }
 
-    private void performThunder(long index, FullChunk chunk) {
+    private void performThunder(FullChunk chunk) {
         if (ThreadLocalRandom.current().nextInt(100000) < 1) {
             int LCG = this.getUpdateLCG() >> 2;
 
@@ -1125,6 +1125,13 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
             int bId = this.getBlockIdAt(vector.getFloorX(), vector.getFloorY(), vector.getFloorZ());
             if (bId != Block.TALL_GRASS && bId != Block.WATER)
                 vector.y += 1;
+            // The strike may be redirected to a nearby exposed entity in an adjacent
+            // chunk. Attach the lightning entity to the chunk containing its final position.
+            FullChunk strikeChunk = this.provider.getLoadedChunk(vector.getFloorX() >> 4, vector.getFloorZ() >> 4);
+            if (strikeChunk == null) {
+                return;
+            }
+
             CompoundTag nbt = new CompoundTag()
                     .putList(new ListTag<DoubleTag>("Pos").add(new DoubleTag("", vector.x))
                             .add(new DoubleTag("", vector.y)).add(new DoubleTag("", vector.z)))
@@ -1133,7 +1140,7 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
                     .putList(new ListTag<FloatTag>("Rotation").add(new FloatTag("", 0))
                             .add(new FloatTag("", 0)));
 
-            EntityLightning bolt = (EntityLightning) Entity.createEntity(EntityLightning.NETWORK_ID, chunk, nbt);
+            EntityLightning bolt = (EntityLightning) Entity.createEntity(EntityLightning.NETWORK_ID, strikeChunk, nbt);
             LightningStrikeEvent ev = new LightningStrikeEvent(this, bolt);
             server.getPluginManager().callEvent(ev);
             if (!ev.isCancelled()) {
