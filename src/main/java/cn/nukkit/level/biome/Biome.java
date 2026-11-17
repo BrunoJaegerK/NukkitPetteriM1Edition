@@ -98,14 +98,15 @@ public abstract class Biome implements BlockID {
 
     /**
      * Gets the Bedrock biome temperature at a world height. Temperature is fixed
-     * at or below sea level (Y=63) and decreases by 1/600 per block above it.
+     * through Y=80 and decreases by 1/800 per block above it. The per-column
+     * transition noise used by the client is not represented by this height-only API.
      */
     public static float getTemperatureAt(int biomeId, int y) {
         BiomeClimate climate = getClimate(biomeId);
         float baseTemperature = climate != null
                 ? climate.temperature
                 : (getBiome(biomeId).isFreezing() ? 0.0f : 0.5f);
-        return baseTemperature - Math.max(0, y - 63) / 600.0f;
+        return baseTemperature - Math.max(0, y - 80) / 800.0f;
     }
 
     /**
