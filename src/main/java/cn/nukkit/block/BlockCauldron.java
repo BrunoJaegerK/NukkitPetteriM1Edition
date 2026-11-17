@@ -373,11 +373,12 @@ public class BlockCauldron extends BlockTransparentMeta {
     @Override
     public int onUpdate(int type) {
         if (type == Level.BLOCK_UPDATE_RANDOM && level.isRaining() && !this.isFull()) {
-            Biome biome = Biome.getBiome(level.getBiomeId((int) this.x, (int) this.z));
+            int biomeId = level.getBiomeId((int) this.x, (int) this.z);
+            float downfall = Biome.getDownfall(biomeId);
 
             // Bedrock cauldrons collect rainwater only; snowfall does not fill them with powder snow.
-            if (biome.canRain() && !biome.isFreezing()
-                    && ThreadLocalRandom.current().nextInt(20) == 0
+            if (Biome.isRainingAt(biomeId, (int) this.y + 1)
+                    && ThreadLocalRandom.current().nextFloat() < 0.05f * downfall
                     && level.canBlockSeeSky(this.up())) {
                 this.setFillLevel(this.getFillLevel() + 1);
                 this.getLevel().setBlock(this, this, true, true);
