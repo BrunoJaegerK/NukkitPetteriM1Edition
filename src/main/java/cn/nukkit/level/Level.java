@@ -1144,11 +1144,11 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
             EntityLightning bolt = (EntityLightning) Entity.createEntity(EntityLightning.NETWORK_ID, strikeChunk, nbt);
             LightningStrikeEvent ev = new LightningStrikeEvent(this, bolt);
             server.getPluginManager().callEvent(ev);
-            if (!ev.isCancelled()) {
-                bolt.spawnToAll();
-            } else {
+            if (ev.isCancelled()) {
+                // Keep the client-side lightning flash while suppressing fire and entity damage.
                 bolt.setEffect(false);
             }
+            bolt.spawnToAll();
         }
     }
 
