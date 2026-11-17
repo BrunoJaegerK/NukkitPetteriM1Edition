@@ -12,6 +12,7 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,6 +25,7 @@ public abstract class Biome implements BlockID {
     public static final Biome[] biomes = new Biome[256];
     public static final List<Biome> unorderedBiomes = new ObjectArrayList<>();
     private static final QuickLookupTable runtimeId2Identifier = new QuickLookupTable();
+    private static final Map<String, BiomeClimate> climateByName = new HashMap<>();
 
     private final ArrayList<Populator> populators = new ArrayList<>();
     private int id;
@@ -35,6 +37,28 @@ public abstract class Biome implements BlockID {
         for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
             int biomeId = entry.getValue().getAsInt();
             runtimeId2Identifier.put(biomeId, entry.getKey());
+        }
+
+        JsonObject climateDefinitions = Utils.loadJsonResource("stripped_biome_definitions.json").getAsJsonObject();
+        for (Map.Entry<String, JsonElement> entry : climateDefinitions.entrySet()) {
+            JsonObject climate = entry.getValue().getAsJsonObject();
+            climateByName.put(entry.getKey(), new BiomeClimate(
+                    climate.get("temperature").getAsFloat(),
+                    climate.get("downfall").getAsFloat(),
+                    climate.get("rain").getAsBoolean()
+            ));
+        }
+    }
+
+    private static final class BiomeClimate {
+        private final float temperature;
+        private final float downfall;
+        private final boolean precipitation;
+
+        private BiomeClimate(float temperature, float downfall, boolean precipitation) {
+            this.temperature = temperature;
+            this.downfall = downfall;
+            this.precipitation = precipitation;
         }
     }
 
@@ -65,6 +89,61 @@ public abstract class Biome implements BlockID {
 
     public static String getBiomeNameFromId(int biomeId) {
         return runtimeId2Identifier.get(biomeId);
+    }
+
+    private static BiomeClimate getClimate(int biomeId) {
+        String biomeName = runtimeId2Identifier.get(biomeId);
+        return biomeName == null ? null : climateByName.get(biomeName);
+    }
+
+    /**
+     * Gets the Bedrock biome temperature at a world height. Temperature is fixed
+     * at or below sea level (Y=63) and decreases by 1/600 per block above it.
+     */
+    public static float getTemperatureAt(int biomeId, int y) {
+        BiomeClimate climate = getClimate(biomeId);
+        float baseTemperature = climate != null
+                ? climate.temperature
+                : (getBiome(biomeId).isFreezing() ? 0.0f : 0.5f);
+        return baseTemperature - Math.max(0, y - 63) / 600.0f;
+    }
+
+    /**
+     * Gets the biome's precipitation strength (downfall), clamped to Bedrock's [0, 1] range.
+     */
+    public static float getDownfall(int biomeId) {
+        BiomeClimate climate = getClimate(biomeId);
+        if (climate == null) {
+            Biome biome = getBiome(biomeId);
+            return biome.canRain() || biome.isFreezing() ? 0.5f : 0.0f;
+        }
+        return Math.max(0.0f, Math.min(1.0f, climate.downfall));
+    }
+
+    /**
+     * Whether this biome permits precipitation at all.
+     */
+    public static boolean hasPrecipitation(int biomeId) {
+        BiomeClimate climate = getClimate(biomeId);
+        if (climate != null) {
+            return climate.precipitation && getDownfall(biomeId) > 0.0f;
+        }
+        Biome biome = getBiome(biomeId);
+        return biome.canRain() || biome.isFreezing();
+    }
+
+    /**
+     * Whether snowfall, rather than rain, occurs at the supplied world height.
+     */
+    public static boolean isSnowingAt(int biomeId, int y) {
+        return hasPrecipitation(biomeId) && getTemperatureAt(biomeId, y) <= 0.15f;
+    }
+
+    /**
+     * Whether rain, rather than snowfall, occurs at the supplied world height.
+     */
+    public static boolean isRainingAt(int biomeId, int y) {
+        return hasPrecipitation(biomeId) && getTemperatureAt(biomeId, y) > 0.15f;
     }
 
     public static int getBiomeIdOrCorrect(int biomeId) {
