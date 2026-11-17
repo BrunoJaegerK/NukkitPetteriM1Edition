@@ -1117,9 +1117,9 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
             int chunkZ = chunk.getZ() << 4;
             Vector3 vector = this.adjustPosToNearbyEntity(new Vector3(chunkX + (LCG & 0xf), 0, chunkZ + (LCG >> 8 & 0xf)));
 
-            Biome biome = Biome.getBiome(this.getBiomeId(vector.getFloorX(), vector.getFloorZ()));
-            // Lightning can occur in both rainy and snowy overworld biomes.
-            if (!biome.canRain() && !biome.isFreezing()) {
+            int biomeId = this.getBiomeId(vector.getFloorX(), vector.getFloorZ());
+            // Lightning can occur anywhere the biome permits rain or snowfall.
+            if (!Biome.hasPrecipitation(biomeId)) {
                 return;
             }
 
@@ -1444,19 +1444,20 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
      */
     private void tickSnowAccumulation(FullChunk chunk) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        if (random.nextInt(16) != 0) {
-            return;
-        }
-
         int x = (chunk.getX() << 4) + random.nextInt(16);
         int z = (chunk.getZ() << 4) + random.nextInt(16);
-        Biome biome = Biome.getBiome(chunk.getBiomeId(x & 0x0f, z & 0x0f));
-        if (!biome.isFreezing()) {
-            return;
-        }
+        int biomeId = chunk.getBiomeId(x & 0x0f, z & 0x0f);
 
         int surfaceY = chunk.getHighestBlockAt(x & 0x0f, z & 0x0f, false);
         if (surfaceY < this.getMinBlockY() || surfaceY >= this.getMaxBlockY()) {
+            return;
+        }
+        if (!Biome.isSnowingAt(biomeId, surfaceY + 1)) {
+            return;
+        }
+
+        float downfall = Biome.getDownfall(biomeId);
+        if (downfall <= 0.0f || random.nextFloat() >= downfall / 16.0f) {
             return;
         }
 
