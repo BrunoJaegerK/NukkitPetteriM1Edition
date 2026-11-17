@@ -376,7 +376,7 @@ public class BlockCauldron extends BlockTransparentMeta {
             int biomeId = level.getBiomeId((int) this.x, (int) this.z);
             float downfall = Biome.getDownfall(biomeId);
 
-            // Bedrock cauldrons collect rainwater only; snowfall does not fill them with powder snow.
+            // Powder-snow cauldrons need a runtime block-state mapping not exposed by this legacy block model; never fake them as water.
             if (Biome.isRainingAt(biomeId, (int) this.y + 1)
                     && ThreadLocalRandom.current().nextFloat() < 0.05f * downfall
                     && level.canBlockSeeSky(this.up())) {
