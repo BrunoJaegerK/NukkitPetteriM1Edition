@@ -1449,10 +1449,6 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
      */
     private void tickSnowAccumulation(FullChunk chunk) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        if (random.nextInt(16) != 0) {
-            return;
-        }
-
         int x = (chunk.getX() << 4) + random.nextInt(16);
         int z = (chunk.getZ() << 4) + random.nextInt(16);
         int biomeId = chunk.getBiomeId(x & 0x0f, z & 0x0f);
@@ -1461,7 +1457,8 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
         if (surfaceY < this.getMinBlockY() || surfaceY >= this.getMaxBlockY()) {
             return;
         }
-        if (!Biome.isSnowingAt(biomeId, surfaceY + 1)) {
+        float accumulationChance = Biome.getSnowAccumulationChance(biomeId, surfaceY + 1);
+        if (accumulationChance <= 0.0f || random.nextFloat() >= accumulationChance) {
             return;
         }
 
