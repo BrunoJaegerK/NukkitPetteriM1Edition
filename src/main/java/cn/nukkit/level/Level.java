@@ -973,29 +973,34 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
         }
 
         // Tick Weather
-        if (this.getDimension() != DIMENSION_NETHER && this.getDimension() != DIMENSION_THE_END && this.gameRules.getBoolean(GameRule.DO_WEATHER_CYCLE)) {
-            this.rainTime--;
-            if (this.rainTime <= 0) {
-                if (!this.setRaining(!this.raining)) {
-                    if (this.raining) {
-                        setRainTime(ThreadLocalRandom.current().nextInt(12000) + 12000);
-                    } else {
-                        setRainTime(ThreadLocalRandom.current().nextInt(168000) + 12000);
+        if (this.getDimension() != DIMENSION_NETHER && this.getDimension() != DIMENSION_THE_END) {
+            // The gamerule controls automatic weather transitions, not the effects
+            // of weather that is already active.
+            if (this.gameRules.getBoolean(GameRule.DO_WEATHER_CYCLE)) {
+                this.rainTime--;
+                if (this.rainTime <= 0) {
+                    if (!this.setRaining(!this.raining)) {
+                        if (this.raining) {
+                            setRainTime(ThreadLocalRandom.current().nextInt(12000) + 12000);
+                        } else {
+                            setRainTime(ThreadLocalRandom.current().nextInt(168000) + 12000);
+                        }
+                    }
+                }
+
+                this.thunderTime--;
+                if (this.thunderTime <= 0) {
+                    if (!this.setThundering(!this.thundering)) {
+                        if (this.thundering) {
+                            setThunderTime(ThreadLocalRandom.current().nextInt(12000) + 3600);
+                        } else {
+                            setThunderTime(ThreadLocalRandom.current().nextInt(168000) + 12000);
+                        }
                     }
                 }
             }
 
-            this.thunderTime--;
-            if (this.thunderTime <= 0) {
-                if (!this.setThundering(!this.thundering)) {
-                    if (this.thundering) {
-                        setThunderTime(ThreadLocalRandom.current().nextInt(12000) + 3600);
-                    } else {
-                        setThunderTime(ThreadLocalRandom.current().nextInt(168000) + 12000);
-                    }
-                }
-            }
-
+            // A storm continues to produce lightning while doWeatherCycle is disabled.
             if (this.isThundering()) {
                 Map<Long, ? extends FullChunk> chunks = getChunks();
                 if (chunks instanceof Long2ObjectOpenHashMap) {
