@@ -1375,7 +1375,8 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
 
             // Weather precipitation is independent from random block ticking and
             // does not require neighboring chunks to be loaded.
-            if (this.raining && this.getDimension() == DIMENSION_OVERWORLD) {
+            if (this.raining && this.getDimension() == DIMENSION_OVERWORLD
+                    && this.gameRules.getBoolean(GameRule.DO_WEATHER_CYCLE)) {
                 tickSnowAccumulation(chunk);
             }
 
@@ -1471,8 +1472,10 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
 
         if (surface instanceof BlockSnowLayer) {
             targetY = surfaceY;
-            snowLayers = surface.getDamage() & 0x7;
-            if (snowLayers >= 7) {
+            // Metadata 0 represents one layer, not zero layers. Incrementing
+            // the old metadata directly previously left one-layer snow stuck.
+            snowLayers = (surface.getDamage() & 0x7) + 1;
+            if (snowLayers >= 8) {
                 return;
             }
         } else {
