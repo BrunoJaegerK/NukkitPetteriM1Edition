@@ -134,17 +134,12 @@ public abstract class Biome implements BlockID {
     }
 
     /**
-     * Returns the per-chunk-tick probability of adding one snow layer during
-     * local snowfall. Bedrock biome definitions expose downfall but this
-     * repository's stripped data does not expose the snow_accumulation range.
-     * Downfall therefore scales the existing 1/16 sampling baseline without
-     * inventing biome-specific layer caps or changing the eight-layer block state.
+     * Bedrock selects a weather-check column at a 1/16 per-chunk-tick rate.
+     * This resource does not include the biome snow_accumulation profile, so
+     * its biome-dependent accumulation rate/height cannot yet be reproduced.
      */
     public static float getSnowAccumulationChance(int biomeId, int y) {
-        if (!isSnowingAt(biomeId, y)) {
-            return 0.0f;
-        }
-        return getDownfall(biomeId) / 16.0f;
+        return isSnowingAt(biomeId, y) ? 1.0f / 16.0f : 0.0f;
     }
 
     /**
