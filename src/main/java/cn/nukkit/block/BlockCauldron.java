@@ -27,12 +27,6 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class BlockCauldron extends BlockTransparentMeta {
 
-    /**
-     * Used to cache biome check for freezing
-     * 1 = can't freeze, 2 = can freeze
-     */
-    private byte freezing;
-
     public BlockCauldron() {
         super(0);
     }
@@ -379,10 +373,12 @@ public class BlockCauldron extends BlockTransparentMeta {
     @Override
     public int onUpdate(int type) {
         if (type == Level.BLOCK_UPDATE_RANDOM && level.isRaining() && !this.isFull()) {
-            if (freezing < 1) {
-                freezing = Biome.getBiome(level.getBiomeId((int) this.x, (int) this.z)).isFreezing() ? (byte) 2 : (byte) 1;
-            }
-            if (freezing == 1 && ThreadLocalRandom.current().nextInt(20) == 0 && level.canBlockSeeSky(this)) {
+            int biomeId = level.getBiomeId((int) this.x, (int) this.z);
+
+            // Powder-snow cauldrons need a runtime block-state mapping not exposed by this legacy block model; never fake them as water.
+            if (Biome.isRainingAt(biomeId, (int) this.y + 1)
+                    && ThreadLocalRandom.current().nextInt(20) == 0
+                    && level.canBlockSeeSky(this.up())) {
                 this.setFillLevel(this.getFillLevel() + 1);
                 this.getLevel().setBlock(this, this, true, true);
                 return Level.BLOCK_UPDATE_RANDOM;

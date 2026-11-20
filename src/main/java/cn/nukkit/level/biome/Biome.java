@@ -1,6 +1,8 @@
 package cn.nukkit.level.biome;
 
 import cn.nukkit.block.BlockID;
+import cn.nukkit.nbt.NBTIO;
+import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.level.ChunkManager;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.level.generator.populator.type.Populator;
@@ -12,7 +14,11 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteOrder;
 import java.util.Map;
 
 /**
@@ -24,6 +30,7 @@ public abstract class Biome implements BlockID {
     public static final Biome[] biomes = new Biome[256];
     public static final List<Biome> unorderedBiomes = new ObjectArrayList<>();
     private static final QuickLookupTable runtimeId2Identifier = new QuickLookupTable();
+    private static final Map<String, BiomeClimate> climateByName = new HashMap<>();
 
     private final ArrayList<Populator> populators = new ArrayList<>();
     private int id;
@@ -35,6 +42,77 @@ public abstract class Biome implements BlockID {
         for (Map.Entry<String, JsonElement> entry : json.entrySet()) {
             int biomeId = entry.getValue().getAsInt();
             runtimeId2Identifier.put(biomeId, entry.getKey());
+        }
+
+        JsonObject climateDefinitions = Utils.loadJsonResource("stripped_biome_definitions.json").getAsJsonObject();
+        for (Map.Entry<String, JsonElement> entry : climateDefinitions.entrySet()) {
+            JsonObject climate = entry.getValue().getAsJsonObject();
+            climateByName.put(entry.getKey(), new BiomeClimate(
+                    climate.get("temperature").getAsFloat(),
+                    climate.get("downfall").getAsFloat(),
+                    climate.get("rain").getAsBoolean()
+            ));
+        }
+        loadSnowAccumulationProfiles();
+    }
+
+    /**
+     * The bundled 554 biome-definition NBT contains the climate snow accumulation
+     * ranges omitted from stripped_biome_definitions.json. Keep this data keyed
+     * by biome identifier so modern biome IDs work without Java biome classes.
+     */
+    private static void loadSnowAccumulationProfiles() {
+        try (InputStream stream = Biome.class.getClassLoader().getResourceAsStream("biome_definitions_554.dat")) {
+            if (stream == null) {
+                return;
+            }
+
+            CompoundTag definitions = NBTIO.read(stream, ByteOrder.LITTLE_ENDIAN, true);
+            for (Map.Entry<String, cn.nukkit.nbt.tag.Tag> entry : definitions.getTags().entrySet()) {
+                if (!(entry.getValue() instanceof CompoundTag)) {
+                    continue;
+                }
+                CompoundTag climate = ((CompoundTag) entry.getValue()).getCompound("minecraft:climate");
+                if (!climate.contains("snow_accumulation_min") || !climate.contains("snow_accumulation_max")) {
+                    continue;
+                }
+
+                float min = climate.getFloat("snow_accumulation_min");
+                float max = climate.getFloat("snow_accumulation_max");
+                if (!Float.isFinite(min) || !Float.isFinite(max) || min < 0.0f || max < min) {
+                    continue;
+                }
+
+                BiomeClimate existing = climateByName.get(entry.getKey());
+                if (existing != null) {
+                    climateByName.put(entry.getKey(), new BiomeClimate(
+                            existing.temperature, existing.downfall, existing.precipitation, min, max
+                    ));
+                }
+            }
+        } catch (IOException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    private static final class BiomeClimate {
+        private final float temperature;
+        private final float downfall;
+        private final boolean precipitation;
+        private final float snowAccumulationMin;
+        private final float snowAccumulationMax;
+
+        private BiomeClimate(float temperature, float downfall, boolean precipitation) {
+            this(temperature, downfall, precipitation, 0.0f, 0.125f);
+        }
+
+        private BiomeClimate(float temperature, float downfall, boolean precipitation,
+                            float snowAccumulationMin, float snowAccumulationMax) {
+            this.temperature = temperature;
+            this.downfall = downfall;
+            this.precipitation = precipitation;
+            this.snowAccumulationMin = snowAccumulationMin;
+            this.snowAccumulationMax = snowAccumulationMax;
         }
     }
 
@@ -65,6 +143,85 @@ public abstract class Biome implements BlockID {
 
     public static String getBiomeNameFromId(int biomeId) {
         return runtimeId2Identifier.get(biomeId);
+    }
+
+    private static BiomeClimate getClimate(int biomeId) {
+        String biomeName = runtimeId2Identifier.get(biomeId);
+        return biomeName == null ? null : climateByName.get(biomeName);
+    }
+
+    /**
+     * Gets the Bedrock biome temperature at a world height. Temperature is fixed
+     * through Y=80 and decreases by 1/800 per block above it. The per-column
+     * transition noise used by the client is not represented by this height-only API.
+     */
+    public static float getTemperatureAt(int biomeId, int y) {
+        BiomeClimate climate = getClimate(biomeId);
+        float baseTemperature = climate != null
+                ? climate.temperature
+                : (getBiome(biomeId).isFreezing() ? 0.0f : 0.5f);
+        return baseTemperature - Math.max(0, y - 80) / 800.0f;
+    }
+
+    /**
+     * Gets the biome's precipitation strength (downfall), clamped to Bedrock's [0, 1] range.
+     */
+    public static float getDownfall(int biomeId) {
+        BiomeClimate climate = getClimate(biomeId);
+        if (climate == null) {
+            Biome biome = getBiome(biomeId);
+            return biome.canRain() || biome.isFreezing() ? 0.5f : 0.0f;
+        }
+        return Math.max(0.0f, Math.min(1.0f, climate.downfall));
+    }
+
+    /**
+     * Whether this biome permits precipitation at all.
+     */
+    public static boolean hasPrecipitation(int biomeId) {
+        BiomeClimate climate = getClimate(biomeId);
+        if (climate != null) {
+            return climate.precipitation && getDownfall(biomeId) > 0.0f;
+        }
+        Biome biome = getBiome(biomeId);
+        return biome.canRain() || biome.isFreezing();
+    }
+
+    /**
+     * Bedrock samples one weather column per loaded chunk tick at a 1/16
+     * baseline. The biome's snow accumulation profile determines whether and
+     * how many layers may form at that column.
+     */
+    public static float getSnowAccumulationChance(int biomeId, int y) {
+        return isSnowingAt(biomeId, y) && getSnowAccumulationMaxLayers(biomeId) > 0
+                ? 1.0f / 16.0f : 0.0f;
+    }
+
+    public static int getSnowAccumulationMinLayers(int biomeId) {
+        BiomeClimate climate = getClimate(biomeId);
+        return climate == null ? 0 : Math.min(12, Math.max(0, Math.round(climate.snowAccumulationMin * 8.0f)));
+    }
+
+    public static int getSnowAccumulationMaxLayers(int biomeId) {
+        BiomeClimate climate = getClimate(biomeId);
+        if (climate == null) {
+            return hasPrecipitation(biomeId) && getTemperatureAt(biomeId, 80) <= 0.15f ? 1 : 0;
+        }
+        return Math.min(12, Math.max(0, Math.round(climate.snowAccumulationMax * 8.0f)));
+    }
+
+    /**
+     * Whether snowfall, rather than rain, occurs at the supplied world height.
+     */
+    public static boolean isSnowingAt(int biomeId, int y) {
+        return hasPrecipitation(biomeId) && getTemperatureAt(biomeId, y) <= 0.15f;
+    }
+
+    /**
+     * Whether rain, rather than snowfall, occurs at the supplied world height.
+     */
+    public static boolean isRainingAt(int biomeId, int y) {
+        return hasPrecipitation(biomeId) && getTemperatureAt(biomeId, y) > 0.15f;
     }
 
     public static int getBiomeIdOrCorrect(int biomeId) {
