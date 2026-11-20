@@ -1463,41 +1463,94 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
             return;
         }
 
+        int minLayers = Biome.getSnowAccumulationMinLayers(biomeId);
+        int maxLayers = Biome.getSnowAccumulationMaxLayers(biomeId);
+        if (maxLayers <= 0) {
+            return;
+        }
+        int targetLayers = minLayers == maxLayers
+                ? minLayers : random.nextInt(minLayers, maxLayers + 1);
+
         Block surface = this.getBlock(chunk, x, surfaceY, z, true);
         if (!this.canBlockSeeSky(new Vector3(x, surfaceY + 1, z))) {
             return;
         }
-        int targetY;
-        int snowLayers = 0;
-
-        if (surface instanceof BlockSnowLayer) {
-            targetY = surfaceY;
-            // Metadata 0 represents one layer, not zero layers. Incrementing
-            // the old metadata directly previously left one-layer snow stuck.
-            snowLayers = (surface.getDamage() & 0x7) + 1;
-            if (snowLayers >= 8) {
-                return;
-            }
-        } else {
-            // Snow can only rest on a solid supporting surface.
-            if (!surface.isSolid() || surface.getId() == Block.ICE
-                    || surface.getId() == Block.PACKED_ICE || surface.getId() == Block.ICE_FROSTED) {
-                return;
-            }
-            targetY = surfaceY + 1;
-            if (this.getBlock(chunk, x, targetY, z, true).getId() != Block.AIR) {
-                return;
-            }
+        int currentLayers = countSnowLayersInColumn(chunk, x, surfaceY, z);
+        if (currentLayers >= targetLayers || currentLayers >= maxLayers) {
+            return;
         }
 
-        int newLayers = snowLayers + 1;
+        if (surface instanceof BlockSnowLayer) {
+            int layerCount = (surface.getDamage() & 0x7) + 1;
+            if (layerCount < 8) {
+                Block newState = Block.get((Block.SNOW_LAYER << Block.DATA_BITS) | layerCount,
+                        this, x, surfaceY, z);
+                BlockFormEvent event = new BlockFormEvent(surface, newState);
+                this.server.getPluginManager().callEvent(event);
+                if (!event.isCancelled()) {
+                    this.setBlock(x, surfaceY, z, event.getNewState(), false, true);
+                }
+                return;
+            }
+
+            // Eight snow layers become a full snow block; extra profile layers
+            // continue above it, allowing up to twelve layers in vanilla biomes.
+            int layerY = surfaceY + 1;
+            if (layerY >= this.getMaxBlockY()
+                    || this.getBlock(chunk, x, layerY, z, true).getId() != Block.AIR) {
+                return;
+            }
+            Block snowBlock = Block.get(Block.SNOW_BLOCK << Block.DATA_BITS, this, x, surfaceY, z);
+            BlockFormEvent snowBlockEvent = new BlockFormEvent(surface, snowBlock);
+            this.server.getPluginManager().callEvent(snowBlockEvent);
+            if (snowBlockEvent.isCancelled() || snowBlockEvent.getNewState().getId() != Block.SNOW_BLOCK) {
+                return;
+            }
+
+            Block air = this.getBlock(chunk, x, layerY, z, true);
+            Block newLayer = Block.get(Block.SNOW_LAYER << Block.DATA_BITS, this, x, layerY, z);
+            BlockFormEvent layerEvent = new BlockFormEvent(air, newLayer);
+            this.server.getPluginManager().callEvent(layerEvent);
+            if (layerEvent.isCancelled()) {
+                return;
+            }
+            this.setBlock(x, surfaceY, z, snowBlockEvent.getNewState(), false, true);
+            this.setBlock(x, layerY, z, layerEvent.getNewState(), false, true);
+            return;
+        }
+
+        int targetY = surfaceY + 1;
+        if (targetY >= this.getMaxBlockY()
+                || !surface.isSolid()
+                || surface.getId() == Block.ICE
+                || surface.getId() == Block.PACKED_ICE
+                || surface.getId() == Block.ICE_FROSTED
+                || this.getBlock(chunk, x, targetY, z, true).getId() != Block.AIR) {
+            return;
+        }
+
         Block oldState = this.getBlock(chunk, x, targetY, z, true);
-        Block newState = Block.get((Block.SNOW_LAYER << Block.DATA_BITS) | (newLayers - 1), this, x, targetY, z);
+        Block newState = Block.get(Block.SNOW_LAYER << Block.DATA_BITS, this, x, targetY, z);
         BlockFormEvent event = new BlockFormEvent(oldState, newState);
         this.server.getPluginManager().callEvent(event);
         if (!event.isCancelled()) {
             this.setBlock(x, targetY, z, event.getNewState(), false, true);
         }
+    }
+
+    private int countSnowLayersInColumn(FullChunk chunk, int x, int y, int z) {
+        int layers = 0;
+        for (int scanY = y; scanY >= this.getMinBlockY() && layers < 12; scanY--) {
+            Block block = this.getBlock(chunk, x, scanY, z, true);
+            if (block instanceof BlockSnowLayer) {
+                layers += (block.getDamage() & 0x7) + 1;
+            } else if (block.getId() == Block.SNOW_BLOCK) {
+                layers += 8;
+            } else {
+                break;
+            }
+        }
+        return Math.min(12, layers);
     }
 
     public boolean save() {
