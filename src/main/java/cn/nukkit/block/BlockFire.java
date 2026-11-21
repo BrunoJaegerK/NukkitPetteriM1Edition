@@ -16,6 +16,7 @@ import cn.nukkit.item.Item;
 import cn.nukkit.item.ItemBlock;
 import cn.nukkit.level.GameRule;
 import cn.nukkit.level.Level;
+import cn.nukkit.level.biome.Biome;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.math.AxisAlignedBB;
 import cn.nukkit.math.BlockFace;
@@ -122,13 +123,13 @@ public class BlockFire extends BlockFlowable {
             Block down = this.down();
             boolean forever = this.getId() == SOUL_FIRE || down.getId() == NETHERRACK || down.getId() == MAGMA || (down.getId() == BEDROCK && level.getDimension() == Level.DIMENSION_THE_END);
 
-            if (!forever && this.getLevel().isRaining() &&
-                    (this.getLevel().canBlockSeeSky(this) ||
-                            this.getLevel().canBlockSeeSky(this.east()) ||
-                            this.getLevel().canBlockSeeSky(this.west()) ||
-                            this.getLevel().canBlockSeeSky(this.south()) ||
-                            this.getLevel().canBlockSeeSky(this.north()))
-            ) {
+            // Rain extinguishes exposed fire only where the local biome receives rain.
+            // Snowfall must not be treated as rain, and dry biomes stay unaffected.
+            if (!forever && (isRainExposedAt((int) this.x, (int) this.y, (int) this.z) ||
+                    isRainExposedAt((int) this.x + 1, (int) this.y, (int) this.z) ||
+                    isRainExposedAt((int) this.x - 1, (int) this.y, (int) this.z) ||
+                    isRainExposedAt((int) this.x, (int) this.y, (int) this.z + 1) ||
+                    isRainExposedAt((int) this.x, (int) this.y, (int) this.z - 1)) {
 
                 this.getLevel().setBlock(this, Block.get(BlockID.AIR), true);
             }
@@ -192,6 +193,11 @@ public class BlockFire extends BlockFlowable {
                                 }
 
                                 Block block = this.getLevel().getBlock(chunk, x, y, z, false);
+                                // Rain reaching the candidate or an adjacent surface prevents ignition.
+                                // The local biome check leaves snowfall and dry biomes alone.
+                                if (isRainExposedToFire(x, y, z)) {
+                                    continue;
+                                }
                                 int chance = getChanceOfNeighborsEncouragingFire(block);
 
                                 if (chance > 0) {
@@ -228,7 +234,7 @@ public class BlockFire extends BlockFlowable {
 
     private void tryToCatchBlockOnFire(Block block, int bound, int damage) {
         int burnAbility = block.getBurnAbility();
-        if (burnAbility == 0) {
+        if (burnAbility == 0 || isRainExposedAt((int) block.x, (int) block.y, (int) block.z)) {
             return;
         }
 
@@ -262,6 +268,40 @@ public class BlockFire extends BlockFlowable {
                 ((BlockTNT) block).prime();
             }
         }
+    }
+
+    /**
+     * Returns true when rain can reach this block in its local biome.
+     * Snowfall and biomes without precipitation do not extinguish fire.
+     */
+    private boolean isRainExposedAt(int x, int y, int z) {
+        if (!this.level.isRaining()) {
+            return false;
+        }
+
+        FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+        if (chunk == null) {
+            return false;
+        }
+
+        int localX = x & 0x0f;
+        int localZ = z & 0x0f;
+        int precipitationY = y + 1;
+        int biomeId = chunk.getBiomeId(localX, localZ);
+        return Biome.isRainingAt(biomeId, precipitationY)
+                && chunk.getHighestBlockAt(localX, localZ, false) < precipitationY;
+    }
+
+    /**
+     * Bedrock fire spread is blocked when rain reaches the candidate or one
+     * of its four horizontal neighbors. Do not load neighboring chunks here.
+     */
+    private boolean isRainExposedToFire(int x, int y, int z) {
+        return isRainExposedAt(x, y, z)
+                || isRainExposedAt(x + 1, y, z)
+                || isRainExposedAt(x - 1, y, z)
+                || isRainExposedAt(x, y, z + 1)
+                || isRainExposedAt(x, y, z - 1);
     }
 
     private static int getChanceOfNeighborsEncouragingFire(Block block) {
