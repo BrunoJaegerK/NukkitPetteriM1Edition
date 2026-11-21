@@ -129,7 +129,7 @@ public class BlockFire extends BlockFlowable {
                     isRainExposedAt((int) this.x + 1, (int) this.y, (int) this.z) ||
                     isRainExposedAt((int) this.x - 1, (int) this.y, (int) this.z) ||
                     isRainExposedAt((int) this.x, (int) this.y, (int) this.z + 1) ||
-                    isRainExposedAt((int) this.x, (int) this.y, (int) this.z - 1)) {
+                    isRainExposedAt((int) this.x, (int) this.y, (int) this.z - 1))) {
 
                 this.getLevel().setBlock(this, Block.get(BlockID.AIR), true);
             }
