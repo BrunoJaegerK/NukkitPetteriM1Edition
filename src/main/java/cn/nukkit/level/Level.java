@@ -1375,8 +1375,9 @@ public class Level implements ChunkManager, Metadatable, GeneratorTaskFactory {
 
             // Weather precipitation is independent from random block ticking and
             // does not require neighboring chunks to be loaded.
-            if (this.raining && this.getDimension() == DIMENSION_OVERWORLD
-                    && this.gameRules.getBoolean(GameRule.DO_WEATHER_CYCLE)) {
+            // Freezing weather effects continue while the weather cycle is frozen.
+            // DO_WEATHER_CYCLE controls transitions, not precipitation effects.
+            if (this.raining && this.getDimension() == DIMENSION_OVERWORLD) {
                 tickSnowAccumulation(chunk);
             }
 
