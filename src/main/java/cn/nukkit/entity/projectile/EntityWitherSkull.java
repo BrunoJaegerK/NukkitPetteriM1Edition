@@ -85,6 +85,12 @@ public class EntityWitherSkull extends EntityProjectile {
     @Override
     public void onCollideWithEntity(Entity entity) {
         super.onCollideWithEntity(entity);
-        entity.addEffect(Effect.getEffect(Effect.WITHER).setDuration(200), EntityPotionEffectEvent.Cause.ATTACK);
+        // Bedrock's Wither effect is disabled on Easy and lasts longer on Hard.
+        int difficulty = this.server.getDifficulty();
+        if (difficulty >= 2) {
+            int duration = difficulty == 3 ? 800 : 200;
+            entity.addEffect(Effect.getEffect(Effect.WITHER).setAmplifier(1).setDuration(duration),
+                    EntityPotionEffectEvent.Cause.ATTACK);
+        }
     }
 }
