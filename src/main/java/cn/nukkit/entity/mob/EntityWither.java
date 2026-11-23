@@ -79,6 +79,12 @@ public class EntityWither extends EntityFlyingMob implements EntityBoss, EntityS
         this.setDamage(new int[]{0, 2, 4, 6});
         this.halfHealthPhase = this.namedTag.getBoolean("WitherHalfHealthPhase");
         this.witherArmor = this.namedTag.getBoolean("WitherArmor");
+        this.mainHeadVolley = this.namedTag.getInt("WitherMainHeadVolley");
+        this.dashCooldown = this.namedTag.getInt("WitherDashCooldown");
+        this.sideHeadCooldowns[0] = this.namedTag.getInt("WitherSideHeadCooldown1");
+        this.sideHeadCooldowns[1] = this.namedTag.getInt("WitherSideHeadCooldown2");
+        this.sideHeadBlueCounters[0] = this.namedTag.getInt("WitherSideHeadBlueCounter1");
+        this.sideHeadBlueCounters[1] = this.namedTag.getInt("WitherSideHeadBlueCounter2");
         if (this.age == 0) {
             this.setDataProperty(new IntEntityData(DATA_WITHER_INVULNERABLE_TICKS, 220));
             this.stayTime = 220;
@@ -378,6 +384,12 @@ public class EntityWither extends EntityFlyingMob implements EntityBoss, EntityS
         super.saveNBT();
         this.namedTag.putBoolean("WitherHalfHealthPhase", this.halfHealthPhase);
         this.namedTag.putBoolean("WitherArmor", this.witherArmor);
+        this.namedTag.putInt("WitherMainHeadVolley", this.mainHeadVolley);
+        this.namedTag.putInt("WitherDashCooldown", this.dashCooldown);
+        this.namedTag.putInt("WitherSideHeadCooldown1", this.sideHeadCooldowns[0]);
+        this.namedTag.putInt("WitherSideHeadCooldown2", this.sideHeadCooldowns[1]);
+        this.namedTag.putInt("WitherSideHeadBlueCounter1", this.sideHeadBlueCounters[0]);
+        this.namedTag.putInt("WitherSideHeadBlueCounter2", this.sideHeadBlueCounters[1]);
     }
 
     @Override
