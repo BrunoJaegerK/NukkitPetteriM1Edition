@@ -69,6 +69,7 @@ public class WeatherCommand extends VanillaCommand {
                 }
                 level.setRainTime(seconds * 20);
                 level.setThunderTime(seconds * 20);
+                level.sendWeather((Player[]) null);
                 Command.broadcastCommandMessage(sender,
                         new TranslationContainer("commands.weather.clear"));
                 return true;
@@ -81,6 +82,7 @@ public class WeatherCommand extends VanillaCommand {
                     return true;
                 }
                 level.setRainTime(seconds * 20);
+                level.sendWeather((Player[]) null);
                 Command.broadcastCommandMessage(sender,
                         new TranslationContainer("commands.weather.rain"));
                 return true;
@@ -90,6 +92,7 @@ public class WeatherCommand extends VanillaCommand {
                 }
                 level.setRainTime(seconds * 20);
                 level.setThunderTime(seconds * 20);
+                level.sendWeather((Player[]) null);
                 Command.broadcastCommandMessage(sender,
                         new TranslationContainer("commands.weather.thunder"));
                 return true;
