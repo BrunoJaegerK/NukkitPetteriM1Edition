@@ -160,17 +160,30 @@ public class EntityWither extends EntityFlyingMob implements EntityBoss, EntityS
         }
     }
 
+    private EntityCreature getMainHeadTarget() {
+        return this.followTarget instanceof EntityCreature ? (EntityCreature) this.followTarget
+                : this.target instanceof EntityCreature ? (EntityCreature) this.target : null;
+    }
+
     private void updateSideHeads(int tickDiff) {
+        EntityCreature mainTarget = getMainHeadTarget();
         for (int i = 0; i < SIDE_HEADS; i++) {
             if (this.sideHeadCooldowns[i] > 0) {
                 this.sideHeadCooldowns[i] = Math.max(0, this.sideHeadCooldowns[i] - tickDiff);
             }
             EntityCreature selected = this.sideHeadTargets[i];
-            if (!isValidSideTarget(selected) || selected == this.followTarget || !this.seesTarget(selected)) {
-                selected = findSideHeadTarget(i);
-                this.sideHeadTargets[i] = selected;
-                this.sideHeadTargetIds[i] = selected == null ? 0 : (int) selected.getId();
-                this.setDataProperty(new LongEntityData(i == 0 ? DATA_WITHER_TARGET_2 : DATA_WITHER_TARGET_3, selected == null ? 0 : selected.getId()));
+            if (!isValidSideTarget(selected) || selected == mainTarget || !this.seesTarget(selected)) {
+                selected = null;
+                this.sideHeadTargets[i] = null;
+                this.sideHeadTargetIds[i] = 0;
+                this.setDataProperty(new LongEntityData(i == 0 ? DATA_WITHER_TARGET_2 : DATA_WITHER_TARGET_3, 0));
+                // Only rescan the entity list when this head is ready to shoot.
+                if (this.sideHeadCooldowns[i] == 0) {
+                    selected = findSideHeadTarget(i);
+                    this.sideHeadTargets[i] = selected;
+                    this.sideHeadTargetIds[i] = selected == null ? 0 : (int) selected.getId();
+                    this.setDataProperty(new LongEntityData(i == 0 ? DATA_WITHER_TARGET_2 : DATA_WITHER_TARGET_3, selected == null ? 0 : selected.getId()));
+                }
             }
             if (this.sideHeadCooldowns[i] == 0) {
                 if (selected != null) {
@@ -312,12 +325,19 @@ public class EntityWither extends EntityFlyingMob implements EntityBoss, EntityS
         int cy = this.getFloorY();
         int cz = this.getFloorZ();
         Item tool = Item.get(Item.DIAMOND_PICKAXE);
+        Vector3 blockPos = new Vector3(0, 0, 0);
         for (int x = cx - 2; x <= cx + 2; x++) {
             for (int y = cy - 1; y <= cy + 4; y++) {
                 for (int z = cz - 2; z <= cz + 2; z++) {
                     Block block = this.level.getBlock(this.chunk, x, y, z, true);
                     if (block.isBreakable(tool)) {
                         this.level.setBlock(x, y, z, Block.LAYER_NORMAL, Block.get(Block.AIR), false, true);
+                        BlockEntity blockEntity = this.level.getBlockEntityIfLoaded(this.chunk, blockPos.setComponents(x, y, z));
+                        if (blockEntity != null) {
+                            blockEntity.onBreak();
+                            blockEntity.close();
+                            this.level.updateComparatorOutputLevel(block);
+                        }
                     }
                 }
             }
