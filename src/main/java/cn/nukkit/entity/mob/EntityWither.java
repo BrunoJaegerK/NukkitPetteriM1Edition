@@ -16,6 +16,7 @@ import cn.nukkit.event.entity.EntityExplosionPrimeEvent;
 import cn.nukkit.event.entity.ProjectileLaunchEvent;
 import cn.nukkit.item.Item;
 import cn.nukkit.level.Explosion;
+import cn.nukkit.level.Position;
 import cn.nukkit.level.GameRule;
 import cn.nukkit.level.Sound;
 import cn.nukkit.level.format.FullChunk;
@@ -144,7 +145,7 @@ public class EntityWither extends EntityFlyingMob implements EntityBoss, EntityS
             offsetZ = Math.sin(angle) * 1.15;
         }
         Vector3 origin = this.add(offsetX, head == 0 ? this.getEyeHeight() + 0.7 : 2.2, offsetZ);
-        Entity projectile = Entity.createEntity(blue ? "BlueWitherSkull" : "WitherSkull", origin, this);
+        Entity projectile = Entity.createEntity(blue ? "BlueWitherSkull" : "WitherSkull", Position.fromObject(origin, this.level), this);
         if (!(projectile instanceof EntityWitherSkull)) return;
         EntityWitherSkull skull = (EntityWitherSkull) projectile;
         if (blue && skull instanceof EntityBlueWitherSkull) {
@@ -231,7 +232,7 @@ public class EntityWither extends EntityFlyingMob implements EntityBoss, EntityS
         double angle = Utils.rand(0, 360);
         double radians = Math.toRadians(angle);
         Vector3 origin = this.add(Math.cos(radians) * 1.1, 2.2, Math.sin(radians) * 1.1);
-        Entity projectile = Entity.createEntity("BlueWitherSkull", origin, this);
+        Entity projectile = Entity.createEntity("BlueWitherSkull", Position.fromObject(origin, this.level), this);
         if (!(projectile instanceof EntityBlueWitherSkull)) return;
         EntityBlueWitherSkull skull = (EntityBlueWitherSkull) projectile;
         skull.setExplode(true);
@@ -304,7 +305,7 @@ public class EntityWither extends EntityFlyingMob implements EntityBoss, EntityS
             for (int i = 0; i < 4; i++) {
                 double angle = Math.PI * 2 * i / 4;
                 Vector3 spawn = this.add(Math.cos(angle) * 2.5, 0, Math.sin(angle) * 2.5);
-                Entity skeleton = Entity.createEntity("WitherSkeleton", spawn, this);
+                Entity skeleton = Entity.createEntity("WitherSkeleton", Position.fromObject(spawn, this.level), this);
                 if (skeleton != null && !skeleton.closed) skeleton.spawnToAll();
             }
         }
