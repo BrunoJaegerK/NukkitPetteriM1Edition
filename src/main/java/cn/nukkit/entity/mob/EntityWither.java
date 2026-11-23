@@ -269,14 +269,16 @@ public class EntityWither extends EntityFlyingMob implements EntityBoss, EntityS
             if (!this.halfHealthPhase && this.getHealth() <= this.getMaxHealth() / 2) {
                 this.activateHalfHealthPhase();
             }
-            this.updateSideHeads(tickDiff);
-            EntityCreature main = this.followTarget instanceof EntityCreature ? (EntityCreature) this.followTarget
-                    : this.target instanceof EntityCreature ? (EntityCreature) this.target : null;
+            if (this.getServer().getMobAiEnabled()) {
+                this.updateSideHeads(tickDiff);
+            }
+            EntityCreature main = getMainHeadTarget();
             this.setDataProperty(new LongEntityData(DATA_WITHER_TARGET_1, main == null ? 0 : main.getId()));
             if (this.halfHealthPhase) {
                 this.dashCooldown = Math.max(0, this.dashCooldown - tickDiff);
-                if (this.dashTicks <= 0 && this.dashCooldown == 0 && main != null && isValidSideTarget(main)
-                        && this.distanceSquared(main) >= 9 && this.distanceSquared(main) <= 900) {
+                if (this.getServer().getMobAiEnabled() && this.dashTicks <= 0 && this.dashCooldown == 0
+                        && main != null && isValidSideTarget(main) && this.distanceSquared(main) >= 9
+                        && this.distanceSquared(main) <= 900) {
                     this.dashTarget = main;
                     this.dashTicks = 5;
                     this.dashCooldown = 100;
@@ -326,23 +328,24 @@ public class EntityWither extends EntityFlyingMob implements EntityBoss, EntityS
     }
 
     private void breakDashBlocks() {
-        if (!this.level.getGameRules().getBoolean(GameRule.MOB_GRIEFING)) return;
         int cx = this.getFloorX();
         int cy = this.getFloorY();
         int cz = this.getFloorZ();
         Item tool = Item.get(Item.DIAMOND_PICKAXE);
         Vector3 blockPos = new Vector3(0, 0, 0);
-        for (int x = cx - 2; x <= cx + 2; x++) {
-            for (int y = cy - 1; y <= cy + 4; y++) {
-                for (int z = cz - 2; z <= cz + 2; z++) {
-                    Block block = this.level.getBlock(this.chunk, x, y, z, true);
-                    if (block.isBreakable(tool)) {
-                        this.level.setBlock(x, y, z, Block.LAYER_NORMAL, Block.get(Block.AIR), false, true);
-                        BlockEntity blockEntity = this.level.getBlockEntityIfLoaded(this.chunk, blockPos.setComponents(x, y, z));
-                        if (blockEntity != null) {
-                            blockEntity.onBreak();
-                            blockEntity.close();
-                            this.level.updateComparatorOutputLevel(block);
+        if (this.level.getGameRules().getBoolean(GameRule.MOB_GRIEFING)) {
+            for (int x = cx - 2; x <= cx + 2; x++) {
+                for (int y = cy - 1; y <= cy + 4; y++) {
+                    for (int z = cz - 2; z <= cz + 2; z++) {
+                        Block block = this.level.getBlock(this.chunk, x, y, z, true);
+                        if (block.isBreakable(tool)) {
+                            this.level.setBlock(x, y, z, Block.LAYER_NORMAL, Block.get(Block.AIR), false, true);
+                            BlockEntity blockEntity = this.level.getBlockEntityIfLoaded(this.chunk, blockPos.setComponents(x, y, z));
+                            if (blockEntity != null) {
+                                blockEntity.onBreak();
+                                blockEntity.close();
+                                this.level.updateComparatorOutputLevel(block);
+                            }
                         }
                     }
                 }
