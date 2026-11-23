@@ -132,6 +132,7 @@ public class BlockFire extends BlockFlowable {
                     isRainExposedAt((int) this.x, (int) this.y, (int) this.z - 1))) {
 
                 this.getLevel().setBlock(this, Block.get(BlockID.AIR), true);
+                return 0;
             }
 
             if (Server.getInstance().suomiCraftPEMode()) {
