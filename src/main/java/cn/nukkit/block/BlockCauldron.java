@@ -379,9 +379,10 @@ public class BlockCauldron extends BlockTransparentMeta {
 
             // Rain fills a cauldron at 5% of the per-column snowfall rate.
             // Random block ticks sample RANDOM_TICK_SPEED blocks per section,
-            // so compensate for that sampling frequency and biome downfall.
+            // so compensate for that sampling frequency without changing the
+            // vanilla 1/16 snowfall baseline.
             float fillChance = randomTickSpeed > 0
-                    ? Biome.getDownfall(biomeId) / (20.0f * randomTickSpeed)
+                    ? 1.0f / (20.0f * randomTickSpeed)
                     : 0.0f;
 
             // Powder-snow cauldrons need a runtime block-state mapping not exposed by this legacy block model; never fake them as water.
