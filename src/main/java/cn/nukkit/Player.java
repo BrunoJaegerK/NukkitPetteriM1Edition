@@ -2602,7 +2602,7 @@ public class Player extends EntityHuman implements CommandSender, InventoryHolde
             if (this.isOnFire() && this.age % 10 == 0) {
                 if (this.isCreative() && !this.isInsideOfFire()) {
                     this.extinguish();
-                } else if (this.getLevel().isRaining() && this.canSeeSky()) {
+                } else if (this.isInRain() && this.canSeeSky()) {
                     this.extinguish();
                 }
             }
@@ -3936,7 +3936,7 @@ public class Player extends EntityHuman implements CommandSender, InventoryHolde
                                         break;
                                     }
                                 }
-                                if (!(inWater || (this.getLevel().isRaining() && this.canSeeSky()))) {
+                                if (!(inWater || (this.isInRain() && this.canSeeSky()))) {
                                     playerToggleSpinAttackEvent.setCancelled(true);
                                 }
                             }
@@ -4360,7 +4360,7 @@ public class Player extends EntityHuman implements CommandSender, InventoryHolde
                                             break;
                                         }
                                     }
-                                    if (!(inWater || (this.getLevel().isRaining() && this.canSeeSky()))) {
+                                    if (!(inWater || (this.isInRain() && this.canSeeSky()))) {
                                         playerToggleSpinAttackEvent.setCancelled(true);
                                     }
                                 }

@@ -25,6 +25,7 @@ import cn.nukkit.item.ItemArrow;
 import cn.nukkit.item.ItemID;
 import cn.nukkit.item.enchantment.Enchantment;
 import cn.nukkit.level.*;
+import cn.nukkit.level.biome.Biome;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.level.persistence.PersistentDataContainer;
 import cn.nukkit.level.persistence.impl.PersistentDataContainerEntityWrapper;
@@ -3092,6 +3093,19 @@ public abstract class Entity extends Location implements Metadatable {
             }
         }
         return true;
+    }
+
+    /**
+     * Returns whether rain (not snowfall) is active in this entity's biome
+     * at its current height. Callers that need direct exposure must also
+     * check {@link #canSeeSky()}.
+     */
+    protected boolean isInRain() {
+        if (this.level == null || !this.level.isRaining()) {
+            return false;
+        }
+        int biomeId = this.level.getBiomeId(this.getFloorX(), this.getFloorZ());
+        return Biome.isRainingAt(biomeId, this.getFloorY() + 1);
     }
 
     public void setSaveToStorage(boolean saveToStorage) {
