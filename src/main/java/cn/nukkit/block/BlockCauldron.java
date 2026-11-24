@@ -6,6 +6,7 @@ import cn.nukkit.blockentity.BlockEntityCauldron;
 import cn.nukkit.event.player.PlayerBucketEmptyEvent;
 import cn.nukkit.event.player.PlayerBucketFillEvent;
 import cn.nukkit.item.*;
+import cn.nukkit.level.GameRule;
 import cn.nukkit.level.Level;
 import cn.nukkit.level.Sound;
 import cn.nukkit.level.biome.Biome;
@@ -374,11 +375,20 @@ public class BlockCauldron extends BlockTransparentMeta {
     public int onUpdate(int type) {
         if (type == Level.BLOCK_UPDATE_RANDOM && level.isRaining() && !this.isFull()) {
             int biomeId = level.getBiomeId((int) this.x, (int) this.z);
+            int randomTickSpeed = level.getGameRules().getInteger(GameRule.RANDOM_TICK_SPEED);
+
+            // Rain fills a cauldron at 5% of the per-column snowfall rate.
+            // Random block ticks sample RANDOM_TICK_SPEED blocks per section,
+            // so compensate for that sampling frequency and biome downfall.
+            float fillChance = randomTickSpeed > 0
+                    ? Biome.getDownfall(biomeId) / (20.0f * randomTickSpeed)
+                    : 0.0f;
 
             // Powder-snow cauldrons need a runtime block-state mapping not exposed by this legacy block model; never fake them as water.
             if (Biome.isRainingAt(biomeId, (int) this.y + 1)
-                    && ThreadLocalRandom.current().nextInt(20) == 0
-                    && level.canBlockSeeSky(this.up())) {
+                    && level.canBlockSeeSky(this.up())
+                    && fillChance > 0.0f
+                    && ThreadLocalRandom.current().nextFloat() < fillChance) {
                 this.setFillLevel(this.getFillLevel() + 1);
                 this.getLevel().setBlock(this, this, true, true);
                 return Level.BLOCK_UPDATE_RANDOM;
