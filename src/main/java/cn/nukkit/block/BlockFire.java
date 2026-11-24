@@ -234,7 +234,7 @@ public class BlockFire extends BlockFlowable {
 
     private void tryToCatchBlockOnFire(Block block, int bound, int damage) {
         int burnAbility = block.getBurnAbility();
-        if (burnAbility == 0 || isRainExposedAt((int) block.x, (int) block.y, (int) block.z)) {
+        if (burnAbility == 0 || isRainExposedToFire((int) block.x, (int) block.y, (int) block.z)) {
             return;
         }
 
