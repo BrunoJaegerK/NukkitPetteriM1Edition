@@ -176,6 +176,14 @@ public abstract class Biome implements BlockID {
     }
 
     /**
+     * Vanilla Bedrock treats biomes with downfall above 0.85 as humid.
+     * Humidity halves the chance and rate of fire spreading.
+     */
+    public static boolean isHumid(int biomeId) {
+        return getDownfall(biomeId) > 0.85f;
+    }
+
+    /**
      * Whether this biome permits precipitation at all.
      */
     public static boolean hasPrecipitation(int biomeId) {
@@ -189,12 +197,14 @@ public abstract class Biome implements BlockID {
 
     /**
      * Bedrock samples one weather column per loaded chunk tick at a 1/16
-     * baseline. The biome's snow accumulation profile determines whether and
-     * how many layers may form at that column.
+     * baseline. Biome downfall scales precipitation-driven block changes, so
+     * it also scales how quickly snow accumulates in that column.
      */
     public static float getSnowAccumulationChance(int biomeId, int y) {
-        return isSnowingAt(biomeId, y) && getSnowAccumulationMaxLayers(biomeId) > 0
-                ? 1.0f / 16.0f : 0.0f;
+        if (!isSnowingAt(biomeId, y) || getSnowAccumulationMaxLayers(biomeId) <= 0) {
+            return 0.0f;
+        }
+        return getDownfall(biomeId) / 16.0f;
     }
 
     public static int getSnowAccumulationMinLayers(int biomeId) {
