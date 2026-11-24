@@ -247,7 +247,6 @@ public class BlockFire extends BlockFlowable {
                 }
 
                 int meta = damage + (random.nextInt(5) >> 2);
-
                 if (meta > 15) {
                     meta = 15;
                 }
@@ -256,21 +255,25 @@ public class BlockFire extends BlockFlowable {
                 this.level.getServer().getPluginManager().callEvent(e);
 
                 if (!e.isCancelled()) {
-                    Block target = Block.get(FIRE, meta);
-                    this.getLevel().setBlock(block, target, true);
-                    this.getLevel().scheduleUpdate(target, this.tickRate());
+                    if (block instanceof BlockTNT) {
+                        ((BlockTNT) block).prime();
+                    } else {
+                        Block target = Block.get(FIRE, meta);
+                        this.getLevel().setBlock(block, target, true);
+                        this.getLevel().scheduleUpdate(target, this.tickRate());
+                    }
                 }
             } else {
                 BlockBurnEvent ev = new BlockBurnEvent(block);
                 this.getLevel().getServer().getPluginManager().callEvent(ev);
 
                 if (!ev.isCancelled()) {
-                    this.getLevel().setBlock(block, Block.get(BlockID.AIR), true);
+                    if (block instanceof BlockTNT) {
+                        ((BlockTNT) block).prime();
+                    } else {
+                        this.getLevel().setBlock(block, Block.get(BlockID.AIR), true);
+                    }
                 }
-            }
-
-            if (block instanceof BlockTNT) {
-                ((BlockTNT) block).prime();
             }
         }
     }
