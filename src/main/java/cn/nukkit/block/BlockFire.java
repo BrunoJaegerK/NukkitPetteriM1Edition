@@ -131,8 +131,13 @@ public class BlockFire extends BlockFlowable {
                     isRainExposedAt((int) this.x, (int) this.y, (int) this.z + 1) ||
                     isRainExposedAt((int) this.x, (int) this.y, (int) this.z - 1))) {
 
-                this.getLevel().setBlock(this, Block.get(BlockID.AIR), true);
-                return 0;
+                // Let plugins cancel rain-driven fire extinguishing, just like other block fades.
+                BlockFadeEvent fadeEvent = new BlockFadeEvent(this, Block.get(BlockID.AIR));
+                this.level.getServer().getPluginManager().callEvent(fadeEvent);
+                if (!fadeEvent.isCancelled()) {
+                    this.getLevel().setBlock(this, fadeEvent.getNewState(), true);
+                    return 0;
+                }
             }
 
             if (Server.getInstance().suomiCraftPEMode()) {
