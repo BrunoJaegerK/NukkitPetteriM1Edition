@@ -165,16 +165,12 @@ public class BlockFire extends BlockFlowable {
             } else if (!forever && down.getBurnAbility() <= 0 && meta == 15 && random.nextInt(4) == 0) {
                 this.getLevel().setBlock(this, Block.get(BlockID.AIR), true);
             } else {
-                int o = 0;
-
-                //TODO: decrease the o if the rainfall values are high
-
-                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.EAST), 300 + o, meta);
-                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.WEST), 300 + o, meta);
-                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.DOWN), 250 + o, meta);
-                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.UP), 250 + o, meta);
-                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.SOUTH), 300 + o, meta);
-                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.NORTH), 300 + o, meta);
+                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.EAST), 300, meta);
+                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.WEST), 300, meta);
+                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.DOWN), 250, meta);
+                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.UP), 250, meta);
+                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.SOUTH), 300, meta);
+                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.NORTH), 300, meta);
 
                 int dif = 40 + this.getLevel().getServer().getDifficulty() * 7;
 
@@ -204,7 +200,10 @@ public class BlockFire extends BlockFlowable {
                                 if (chance > 0) {
                                     int t = (chance + dif) / (meta + 30);
 
-                                    //TODO: decrease the t if the rainfall values are high
+                                    // Bedrock halves fire-spread odds in humid biomes.
+                                    if (Biome.isHumid(chunk.getBiomeId(x & 0x0f, z & 0x0f))) {
+                                        k *= 2;
+                                    }
 
                                     if (t > 0 && random.nextInt(k) <= t) {
                                         int damage = meta + (random.nextInt(5) >> 2);
@@ -242,6 +241,11 @@ public class BlockFire extends BlockFlowable {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         if (random.nextInt(bound) < burnAbility) {
             if (random.nextInt(damage + 10) < 5) {
+                // Humidity reduces ignition, but does not reduce the separate block-burn event.
+                if (isHumidAt((int) block.x, (int) block.z) && random.nextBoolean()) {
+                    return;
+                }
+
                 int meta = damage + (random.nextInt(5) >> 2);
 
                 if (meta > 15) {
@@ -291,6 +295,15 @@ public class BlockFire extends BlockFlowable {
         int biomeId = chunk.getBiomeId(localX, localZ);
         return Biome.isRainingAt(biomeId, precipitationY)
                 && chunk.getHighestBlockAt(localX, localZ, false) < precipitationY;
+    }
+
+    /**
+     * Returns whether the target column belongs to a humid biome without
+     * loading a chunk as a side effect.
+     */
+    private boolean isHumidAt(int x, int z) {
+        FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+        return chunk != null && Biome.isHumid(chunk.getBiomeId(x & 0x0f, z & 0x0f));
     }
 
     /**
