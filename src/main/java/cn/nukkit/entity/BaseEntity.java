@@ -955,7 +955,7 @@ public abstract class BaseEntity extends EntityCreature implements EntityAgeable
         if (this.closed || !this.isAlive()) {
             return false;
         }
-        if (level.getDimension() != Level.DIMENSION_OVERWORLD || level.isRaining()) {
+        if (level.getDimension() != Level.DIMENSION_OVERWORLD || this.isInRain()) {
             return false;
         }
         if (this.fireTicks > 1 || this.age % (server.suomiCraftPEMode() ? 5 : 2) != 0) {

@@ -16,6 +16,7 @@ import cn.nukkit.item.Item;
 import cn.nukkit.item.ItemBlock;
 import cn.nukkit.level.GameRule;
 import cn.nukkit.level.Level;
+import cn.nukkit.level.biome.Biome;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.math.AxisAlignedBB;
 import cn.nukkit.math.BlockFace;
@@ -122,15 +123,21 @@ public class BlockFire extends BlockFlowable {
             Block down = this.down();
             boolean forever = this.getId() == SOUL_FIRE || down.getId() == NETHERRACK || down.getId() == MAGMA || (down.getId() == BEDROCK && level.getDimension() == Level.DIMENSION_THE_END);
 
-            if (!forever && this.getLevel().isRaining() &&
-                    (this.getLevel().canBlockSeeSky(this) ||
-                            this.getLevel().canBlockSeeSky(this.east()) ||
-                            this.getLevel().canBlockSeeSky(this.west()) ||
-                            this.getLevel().canBlockSeeSky(this.south()) ||
-                            this.getLevel().canBlockSeeSky(this.north()))
-            ) {
+            // Rain extinguishes exposed fire only where the local biome receives rain.
+            // Snowfall must not be treated as rain, and dry biomes stay unaffected.
+            if (!forever && (isRainExposedAt((int) this.x, (int) this.y, (int) this.z) ||
+                    isRainExposedAt((int) this.x + 1, (int) this.y, (int) this.z) ||
+                    isRainExposedAt((int) this.x - 1, (int) this.y, (int) this.z) ||
+                    isRainExposedAt((int) this.x, (int) this.y, (int) this.z + 1) ||
+                    isRainExposedAt((int) this.x, (int) this.y, (int) this.z - 1))) {
 
-                this.getLevel().setBlock(this, Block.get(BlockID.AIR), true);
+                // Let plugins cancel rain-driven fire extinguishing, just like other block fades.
+                BlockFadeEvent fadeEvent = new BlockFadeEvent(this, Block.get(BlockID.AIR));
+                this.level.getServer().getPluginManager().callEvent(fadeEvent);
+                if (!fadeEvent.isCancelled()) {
+                    this.getLevel().setBlock(this, fadeEvent.getNewState(), true);
+                    return 0;
+                }
             }
 
             if (Server.getInstance().suomiCraftPEMode()) {
@@ -163,16 +170,12 @@ public class BlockFire extends BlockFlowable {
             } else if (!forever && down.getBurnAbility() <= 0 && meta == 15 && random.nextInt(4) == 0) {
                 this.getLevel().setBlock(this, Block.get(BlockID.AIR), true);
             } else {
-                int o = 0;
-
-                //TODO: decrease the o if the rainfall values are high
-
-                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.EAST), 300 + o, meta);
-                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.WEST), 300 + o, meta);
-                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.DOWN), 250 + o, meta);
-                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.UP), 250 + o, meta);
-                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.SOUTH), 300 + o, meta);
-                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.NORTH), 300 + o, meta);
+                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.EAST), 300, meta);
+                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.WEST), 300, meta);
+                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.DOWN), 250, meta);
+                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.UP), 250, meta);
+                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.SOUTH), 300, meta);
+                this.tryToCatchBlockOnFire(this.getSideIfLoaded(BlockFace.NORTH), 300, meta);
 
                 int dif = 40 + this.getLevel().getServer().getDifficulty() * 7;
 
@@ -192,12 +195,20 @@ public class BlockFire extends BlockFlowable {
                                 }
 
                                 Block block = this.getLevel().getBlock(chunk, x, y, z, false);
+                                // Rain reaching the candidate or an adjacent surface prevents ignition.
+                                // The local biome check leaves snowfall and dry biomes alone.
+                                if (isRainExposedToFire(x, y, z)) {
+                                    continue;
+                                }
                                 int chance = getChanceOfNeighborsEncouragingFire(block);
 
                                 if (chance > 0) {
                                     int t = (chance + dif) / (meta + 30);
 
-                                    //TODO: decrease the t if the rainfall values are high
+                                    // Bedrock halves fire-spread odds in humid biomes.
+                                    if (Biome.isHumid(chunk.getBiomeId(x & 0x0f, z & 0x0f))) {
+                                        k *= 2;
+                                    }
 
                                     if (t > 0 && random.nextInt(k) <= t) {
                                         int damage = meta + (random.nextInt(5) >> 2);
@@ -228,15 +239,19 @@ public class BlockFire extends BlockFlowable {
 
     private void tryToCatchBlockOnFire(Block block, int bound, int damage) {
         int burnAbility = block.getBurnAbility();
-        if (burnAbility == 0) {
+        if (burnAbility == 0 || isRainExposedToFire((int) block.x, (int) block.y, (int) block.z)) {
             return;
         }
 
         ThreadLocalRandom random = ThreadLocalRandom.current();
         if (random.nextInt(bound) < burnAbility) {
             if (random.nextInt(damage + 10) < 5) {
-                int meta = damage + (random.nextInt(5) >> 2);
+                // Humidity reduces ignition, but does not reduce the separate block-burn event.
+                if (isHumidAt((int) block.x, (int) block.z) && random.nextBoolean()) {
+                    return;
+                }
 
+                int meta = damage + (random.nextInt(5) >> 2);
                 if (meta > 15) {
                     meta = 15;
                 }
@@ -245,23 +260,70 @@ public class BlockFire extends BlockFlowable {
                 this.level.getServer().getPluginManager().callEvent(e);
 
                 if (!e.isCancelled()) {
-                    Block target = Block.get(FIRE, meta);
-                    this.getLevel().setBlock(block, target, true);
-                    this.getLevel().scheduleUpdate(target, this.tickRate());
+                    if (block instanceof BlockTNT) {
+                        ((BlockTNT) block).prime();
+                    } else {
+                        Block target = Block.get(FIRE, meta);
+                        this.getLevel().setBlock(block, target, true);
+                        this.getLevel().scheduleUpdate(target, this.tickRate());
+                    }
                 }
             } else {
                 BlockBurnEvent ev = new BlockBurnEvent(block);
                 this.getLevel().getServer().getPluginManager().callEvent(ev);
 
                 if (!ev.isCancelled()) {
-                    this.getLevel().setBlock(block, Block.get(BlockID.AIR), true);
+                    if (block instanceof BlockTNT) {
+                        ((BlockTNT) block).prime();
+                    } else {
+                        this.getLevel().setBlock(block, Block.get(BlockID.AIR), true);
+                    }
                 }
             }
-
-            if (block instanceof BlockTNT) {
-                ((BlockTNT) block).prime();
-            }
         }
+    }
+
+    /**
+     * Returns true when rain can reach this block in its local biome.
+     * Snowfall and biomes without precipitation do not extinguish fire.
+     */
+    private boolean isRainExposedAt(int x, int y, int z) {
+        if (!this.level.isRaining()) {
+            return false;
+        }
+
+        FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+        if (chunk == null) {
+            return false;
+        }
+
+        int localX = x & 0x0f;
+        int localZ = z & 0x0f;
+        int precipitationY = y + 1;
+        int biomeId = chunk.getBiomeId(localX, localZ);
+        return Biome.isRainingAt(biomeId, precipitationY)
+                && chunk.getHighestBlockAt(localX, localZ, false) < precipitationY;
+    }
+
+    /**
+     * Returns whether the target column belongs to a humid biome without
+     * loading a chunk as a side effect.
+     */
+    private boolean isHumidAt(int x, int z) {
+        FullChunk chunk = this.level.getChunkIfLoaded(x >> 4, z >> 4);
+        return chunk != null && Biome.isHumid(chunk.getBiomeId(x & 0x0f, z & 0x0f));
+    }
+
+    /**
+     * Bedrock fire spread is blocked when rain reaches the candidate or one
+     * of its four horizontal neighbors. Do not load neighboring chunks here.
+     */
+    private boolean isRainExposedToFire(int x, int y, int z) {
+        return isRainExposedAt(x, y, z)
+                || isRainExposedAt(x + 1, y, z)
+                || isRainExposedAt(x - 1, y, z)
+                || isRainExposedAt(x, y, z + 1)
+                || isRainExposedAt(x, y, z - 1);
     }
 
     private static int getChanceOfNeighborsEncouragingFire(Block block) {
